@@ -12,6 +12,13 @@ tests/Bojalib.Tests/         NUnit tests — mirrors src/Bojalib
 benchmarks/Bojalib.Benchmarks/  BenchmarkDotNet
 ```
 
+## Issues
+
+Use the [bug report](https://github.com/Bojacnik/Bojalib/issues/new?template=bug_report.yml) or
+[feature request](https://github.com/Bojacnik/Bojalib/issues/new?template=feature_request.yml) form. Bug reports
+need the runtime, CPU and whether the result depends on the SIMD path; feature requests need a concrete use case and
+the alternatives you considered. Report security issues privately, as described in [SECURITY.md](SECURITY.md).
+
 ## Before opening a pull request
 
 ```sh

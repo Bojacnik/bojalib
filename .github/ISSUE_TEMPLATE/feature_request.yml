@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose a new algorithm or data structure, or a change to an existing one.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bojalib adds what the .NET base class library (BCL) lacks. Requests that come with a concrete use case and a
+        look at the existing options are the easiest to evaluate.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and use case
+      description: What are you trying to do, and why doesn't what exists today work well enough?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example call site
+      description: How you would like to write it.
+      render: csharp
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: The BCL types, Bojalib types or third-party packages you looked at, and why they fall short.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Expected performance, memory or allocation limits, serialization, thread safety, trimming / Native AOT.
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Suggested API
+      render: csharp
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art and benchmarks
+      description: Papers, implementations in other languages, numbers.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to implement this myself.

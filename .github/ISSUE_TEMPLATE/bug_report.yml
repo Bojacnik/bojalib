@@ -1,0 +1,81 @@
+name: Bug report
+description: Something returns a wrong result, crashes, allocates when it shouldn't, or got slower.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Many Bojalib code paths depend on the CPU's instruction set, so the environment
+        questions below matter. A reproduction that runs as a short console program is the fastest way to a fix.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong, in a sentence or two.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest code that shows the problem, with its input data (or a seed that generates it).
+      render: csharp
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual behavior
+      placeholder: |
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Bojalib version
+      placeholder: 2.0.0
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: .NET SDK and runtime version
+      description: Output of `dotnet --version`, and the runtime the app runs on.
+      placeholder: SDK 10.0.404, runtime 10.0.4
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS, CPU and architecture
+      placeholder: Ubuntu 24.04, AMD Ryzen 9 7950X, x64
+    validations:
+      required: true
+  - type: dropdown
+    id: simd
+    attributes:
+      label: Does it depend on the SIMD path?
+      description: |
+        Try the reproduction with `DOTNET_EnableAVX512F=0`, `DOTNET_EnableAVX2=0` and `DOTNET_EnableHWIntrinsic=0`
+        set in the environment. If the result changes, say which settings fail.
+      options:
+        - Not checked
+        - Fails with every setting
+        - Fails only with some settings (details below)
+    validations:
+      required: true
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Where does it reproduce?
+      options:
+        - label: Debug build
+        - label: Release build
+        - label: Native AOT publish
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Stack trace, benchmark numbers for a regression, a suspected cause or proposed fix, a link to a sample project.
