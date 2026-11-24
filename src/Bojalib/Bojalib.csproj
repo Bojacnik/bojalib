@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <PackageId>Bojalib</PackageId>
-    <Description>High-performance algorithms and data structures the BCL lacks: SIMD pdqsort and radix sort, stable span sort, selection, radix-tree Trie with fuzzy search, indexed priority queue, deque, circular buffer, split-block Bloom filter, interval tree, union-find, tree traversals.</Description>
+    <Description>High-performance algorithms and data structures the BCL lacks: SIMD pdqsort, parallel, radix, string and stable sorts, selection; order-statistic B-tree dictionary and set; Roaring bitmaps; radix-tree Trie with fuzzy and wildcard search; Aho-Corasick multi-pattern search; indexed priority queue, deque, circular buffer, range set, Fenwick tree, interval tree, union-find, LRU cache, tree traversals; Bloom, binary fuse and cuckoo filters, HyperLogLog, Count-Min, TopK, t-digest and MinHash sketches. No dependencies, trimmable, Native AOT compatible.</Description>
     <!-- Lets consumers' trimmed / Native AOT publishes drop the parts they don't use,
          and turns on the analyzers that warn if we write code that breaks that. -->
     <IsTrimmable>true</IsTrimmable>

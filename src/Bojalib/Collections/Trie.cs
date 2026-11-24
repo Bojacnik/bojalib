@@ -33,7 +33,7 @@ namespace Bojalib.Collections;
 /// </remarks>
 /// <typeparam name="TValue">The value type.</typeparam>
 [DebuggerDisplay("Count = {Count}")]
-public sealed partial class Trie<TValue> : IReadOnlyDictionary<string, TValue>
+public sealed partial class Trie<TValue> : IDictionary<string, TValue>, IReadOnlyDictionary<string, TValue>
 {
     private const int Root = 0;
     private const int FreeMarker = -2;
@@ -348,6 +348,21 @@ public sealed partial class Trie<TValue> : IReadOnlyDictionary<string, TValue>
     public Enumerator GetEnumerator() => new(this, Root);
 
     IEnumerator<KeyValuePair<string, TValue>> IEnumerable<KeyValuePair<string, TValue>>.GetEnumerator() => GetEnumerator();
+
+    ICollection<string> IDictionary<string, TValue>.Keys => new ReadOnlyCollectionView<string>(Keys, () => _count, ContainsKey);
+
+    ICollection<TValue> IDictionary<string, TValue>.Values =>
+        new ReadOnlyCollectionView<TValue>(Values, () => _count, value => DictionaryInterop.ContainsValue(this, value));
+
+    bool ICollection<KeyValuePair<string, TValue>>.IsReadOnly => false;
+
+    void ICollection<KeyValuePair<string, TValue>>.Add(KeyValuePair<string, TValue> item) => Add(item.Key, item.Value);
+
+    bool ICollection<KeyValuePair<string, TValue>>.Contains(KeyValuePair<string, TValue> item) => DictionaryInterop.Contains(this, item);
+
+    void ICollection<KeyValuePair<string, TValue>>.CopyTo(KeyValuePair<string, TValue>[] array, int arrayIndex) => DictionaryInterop.CopyTo(this, array, arrayIndex);
+
+    bool ICollection<KeyValuePair<string, TValue>>.Remove(KeyValuePair<string, TValue> item) => DictionaryInterop.Contains(this, item) && Remove(item.Key);
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

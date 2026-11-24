@@ -194,4 +194,18 @@ public class DeserializerFuzzTests
             d.Add(5);
         });
     }
+
+    [Test]
+    public void MinHash_FromBytes()
+    {
+        var sketch = new MinHash<int>(32);
+        for (int i = 0; i < 100; i++) sketch.Add(i);
+        Fuzz(nameof(MinHash<int>), [sketch.ToBytes(), new MinHash<int>(1).ToBytes()], static b => MinHash<int>.FromBytes(b), static o =>
+        {
+            var s = (MinHash<int>)o;
+            s.Similarity(s).Should().Be(1);
+            s.Add(1);
+            MinHash<int>.FromBytes(s.ToBytes()).Signature.SequenceEqual(s.Signature).Should().BeTrue();
+        });
+    }
 }

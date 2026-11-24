@@ -3,6 +3,7 @@
 using Bojalib.Collections;
 using Bojalib.Probabilistic;
 using Bojalib.Sorting;
+using Bojalib.Text;
 
 int failures = 0;
 
@@ -85,6 +86,20 @@ var cache = new LruCache<string, int>(2, StringComparer.Ordinal);
 cache["x"] = 1;
 Check(cache.TryGetValue("x".AsSpan(), out _), "LruCache");
 Check(Tree.Count(0, static n => n < 7 ? [(2 * n) + 1, (2 * n) + 2] : null) == 15, "Tree");
+var fenwick = new FenwickTree<long>([1, 2, 3, 4]);
+fenwick.Add(0, 10);
+Check(fenwick.PrefixSum(2) == 13 && fenwick.LowerBound(14) == 2, "FenwickTree");
+var coverage = new RangeSet<int>([new(1, 5), new(5, 9)]);
+coverage.Remove(3, 4);
+Check(coverage.Count == 2 && coverage.Contains(4) && !coverage.Contains(3), "RangeSet");
+Check(((IDictionary<int, string>)tree).Keys.Count == 10_000 && ((ISet<string>)set).IsSubsetOf(["a", "b", "c"]), "BCL collection interfaces");
+var other = new RoaringBitmap([2, 3]);
+bitmap.UnionWith(other);
+Check(bitmap.IntersectionCount(other) == 2 && RoaringBitmap.Union(bitmap, other).Count == 4, "RoaringBitmap in-place operations");
+
+// Text
+AhoCorasick<string> keywords = AhoCorasick.Create(["he", "she", "hers"]);
+Check(keywords.CountMatches("ushers") == 3, "AhoCorasick");
 
 // Probabilistic
 var bloom = new BloomFilter<string>(1000, 0.01);
@@ -112,6 +127,14 @@ Check(Math.Abs(digest.Quantile(0.5) - 5000) < 100, "TDigest");
 var top = new TopK<string>(10);
 top.Add("x", 5);
 Check(top.GetTop(1)[0].Item == "x", "TopK");
+var cuckoo = new CuckooFilter<string>(1000);
+cuckoo.Add("x");
+Check(cuckoo.MightContain("x") && cuckoo.Remove("x") && !cuckoo.MightContain("x"), "CuckooFilter");
+var a = new MinHash<string>();
+var b = new MinHash<string>();
+a.Add("x");
+b.Add("x");
+Check(MinHash<string>.FromBytes(a.ToBytes()).Similarity(b) == 1, "MinHash");
 
 Console.WriteLine(failures == 0 ? "All AOT smoke checks passed." : $"{failures} checks failed.");
 return failures == 0 ? 0 : 1;

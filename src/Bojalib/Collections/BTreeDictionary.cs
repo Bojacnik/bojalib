@@ -25,7 +25,7 @@ namespace Bojalib.Collections;
 /// <typeparam name="TKey">The key type.</typeparam>
 /// <typeparam name="TValue">The value type.</typeparam>
 [DebuggerDisplay("Count = {Count}")]
-public sealed class BTreeDictionary<TKey, TValue> : IReadOnlyDictionary<TKey, TValue>
+public sealed class BTreeDictionary<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
     where TKey : notnull
 {
     private const int LeafCapacity = 64;
@@ -234,6 +234,21 @@ public sealed class BTreeDictionary<TKey, TValue> : IReadOnlyDictionary<TKey, TV
     public Enumerator GetEnumerator() => new(this, _first, 0, default!, bounded: false);
 
     IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() => GetEnumerator();
+
+    ICollection<TKey> IDictionary<TKey, TValue>.Keys => new ReadOnlyCollectionView<TKey>(Keys, () => _count, ContainsKey);
+
+    ICollection<TValue> IDictionary<TKey, TValue>.Values =>
+        new ReadOnlyCollectionView<TValue>(Values, () => _count, value => DictionaryInterop.ContainsValue(this, value));
+
+    bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => false;
+
+    void ICollection<KeyValuePair<TKey, TValue>>.Add(KeyValuePair<TKey, TValue> item) => Add(item.Key, item.Value);
+
+    bool ICollection<KeyValuePair<TKey, TValue>>.Contains(KeyValuePair<TKey, TValue> item) => DictionaryInterop.Contains(this, item);
+
+    void ICollection<KeyValuePair<TKey, TValue>>.CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => DictionaryInterop.CopyTo(this, array, arrayIndex);
+
+    bool ICollection<KeyValuePair<TKey, TValue>>.Remove(KeyValuePair<TKey, TValue> item) => DictionaryInterop.Contains(this, item) && Remove(item.Key);
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

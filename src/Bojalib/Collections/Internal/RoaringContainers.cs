@@ -286,6 +286,18 @@ internal sealed class BitmapContainer : RoaringContainer
         return new ArrayContainer(values, n);
     }
 
+    /// <summary>Clears bits [start, end] inclusive; the caller recounts.</summary>
+    public void ClearRange(int start, int end)
+    {
+        for (int word = start >> 6; word <= end >> 6; word++)
+        {
+            int low = word == start >> 6 ? start & 63 : 0;
+            int high = word == end >> 6 ? end & 63 : 63;
+            ulong mask = (high == 63 ? ulong.MaxValue : (1UL << (high + 1)) - 1) & (ulong.MaxValue << low);
+            Words[word] &= ~mask;
+        }
+    }
+
     /// <summary>Sets bits [start, end] inclusive.</summary>
     public void SetRange(int start, int end)
     {
@@ -350,9 +362,64 @@ internal static class RoaringOps
         return RoaringContainer.Normalize(Words(a.ToBitmap(), b.ToBitmap(), op));
     }
 
-    private static BitmapContainer Words(BitmapContainer a, BitmapContainer b, Operation op)
+    /// <summary>Like <see cref="Apply"/>, but may reuse <paramref name="a"/>'s storage for the result.</summary>
+    public static RoaringContainer? ApplyInPlace(RoaringContainer a, RoaringContainer b, Operation op)
     {
-        var result = new BitmapContainer();
+        if (a is BitmapContainer bitmapA && (b is BitmapContainer || op is Operation.Or or Operation.Xor))
+        {
+            return RoaringContainer.Normalize(Words(bitmapA, b.ToBitmap(), op, bitmapA));
+        }
+
+        return Apply(a, b, op);
+    }
+
+    /// <summary>The number of values in both containers, without building the intersection.</summary>
+    public static int AndCount(RoaringContainer a, RoaringContainer b)
+    {
+        if (a is ArrayContainer arrayA && b is ArrayContainer arrayB)
+        {
+            ReadOnlySpan<ushort> x = arrayA.Span;
+            ReadOnlySpan<ushort> y = arrayB.Span;
+            int count = 0;
+            int i = 0;
+            int j = 0;
+            while (i < x.Length && j < y.Length)
+            {
+                int order = x[i].CompareTo(y[j]);
+                count += order == 0 ? 1 : 0;
+                i += order <= 0 ? 1 : 0;
+                j += order >= 0 ? 1 : 0;
+            }
+
+            return count;
+        }
+
+        if (a is ArrayContainer || b is ArrayContainer)
+        {
+            (ArrayContainer array, BitmapContainer bitmap) = a is ArrayContainer arr ? (arr, (BitmapContainer)b) : ((ArrayContainer)b, (BitmapContainer)a);
+            int count = 0;
+            foreach (ushort value in array.Span)
+            {
+                count += bitmap.Contains(value) ? 1 : 0;
+            }
+
+            return count;
+        }
+
+        ulong[] wa = ((BitmapContainer)a).Words;
+        ulong[] wb = ((BitmapContainer)b).Words;
+        int total = 0;
+        for (int i = 0; i < BitmapContainer.WordCount; i++)
+        {
+            total += BitOperations.PopCount(wa[i] & wb[i]);
+        }
+
+        return total;
+    }
+
+    private static BitmapContainer Words(BitmapContainer a, BitmapContainer b, Operation op, BitmapContainer? target = null)
+    {
+        BitmapContainer result = target ?? new BitmapContainer();
         ref ulong x = ref MemoryMarshal.GetArrayDataReference(a.Words);
         ref ulong y = ref MemoryMarshal.GetArrayDataReference(b.Words);
         ref ulong z = ref MemoryMarshal.GetArrayDataReference(result.Words);

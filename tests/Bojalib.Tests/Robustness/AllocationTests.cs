@@ -1,6 +1,7 @@
 using Bojalib.Collections;
 using Bojalib.Probabilistic;
 using Bojalib.Sorting;
+using Bojalib.Text;
 
 namespace Bojalib.Tests.Robustness;
 
@@ -153,5 +154,39 @@ public class AllocationTests
         ShouldNotAllocate("CountMinSketch", () => { cms.Add(i2++); _ = cms.Estimate(i2); });
         ShouldNotAllocate("TDigest.Add (including periodic merges)", () => { for (int k = 0; k < 2000; k++) { digest.Add(k % 913); } });
         ShouldNotAllocate("TopK.Add for tracked items", () => { top.Add(i2++ % 100); });
+
+        var cuckoo = new CuckooFilter<int>(100_000);
+        var minHash = new MinHash<int>();
+        var other = new MinHash<int>();
+        ShouldNotAllocate("CuckooFilter", () => { cuckoo.TryAdd(i2); _ = cuckoo.MightContain(i2); cuckoo.Remove(i2++); });
+        ShouldNotAllocate("MinHash", () => { minHash.Add(i2++); _ = minHash.Similarity(other); });
+    }
+
+    [Test]
+    public void NewCollectionsAndText()
+    {
+        var fenwick = new FenwickTree<long>(1000);
+        int i = 0;
+        ShouldNotAllocate("FenwickTree", () => { fenwick.Add(i++ % 1000, 3); _ = fenwick.PrefixSum(500) + fenwick.LowerBound(100); });
+
+        var ranges = new RangeSet<int>();
+        for (int r = 0; r < 100; r++)
+        {
+            ranges.Add(r * 10, (r * 10) + 5);
+        }
+
+        ShouldNotAllocate("RangeSet queries and enumeration", () =>
+        {
+            _ = ranges.Contains(42) && ranges.Overlaps(40, 60);
+            foreach (HalfOpenRange<int> _ in ranges) { }
+        });
+
+        AhoCorasick<string> keywords = AhoCorasick.Create(["error", "warn", "timeout", "rror"]);
+        string log = string.Concat(Enumerable.Repeat("12:00 warn: request timeout; error 500. ", 50));
+        ShouldNotAllocate("AhoCorasick matching", () =>
+        {
+            foreach (AhoCorasick<string>.Match _ in keywords.EnumerateMatches(log)) { }
+            _ = keywords.CountMatches(log);
+        });
     }
 }
