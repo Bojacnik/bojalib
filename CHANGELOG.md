@@ -16,14 +16,13 @@ are deprecated — install `Bojalib` instead. Trimmed / Native AOT publishes onl
 |---|---|
 | `Bojalib.Core.Collections.Generic` namespace | `Bojalib.Collections` |
 | `Bojalib.Core.Sorting.Sorting` namespace | `Bojalib.Sorting` |
-| `Bojalib.Core.IO` namespace | `Bojalib.IO` |
 | `TrieTree<T>` (`InsertWord`, `FindWord`) | `Trie<TValue>` (indexer, `Add`, `TryGetValue`, …) |
 | `Node<T>` | Removed. Use your own node type with the `Tree` traversal helpers |
 | `Stack<T>`, `CustomQueue<T>` | Removed. Use `System.Collections.Generic.Stack<T>` / `Queue<T>`, or `Deque<T>` |
 | `StackEmptyException`, `QueueEmptyException` | Removed with the types above |
 | `Quicksort.Sort(int[])` | `QuickSort.Sort<T>(Span<T>)` — arrays still work as-is |
 | `Bubblesort.Sort(int[])` | `BubbleSort.Sort<T>(Span<T>)` |
-| `Locate` | Removed: `Directory.EnumerateDirectories` / `FileSystemEnumerable` cover it |
+| `Bojalib.Core.IO` namespace, `Locate` | Removed: `Directory.EnumerateDirectories` / `FileSystemEnumerable` cover it |
 
 Requires .NET 10.
 
@@ -54,9 +53,22 @@ Requires .NET 10.
   - `Tree`: `DepthFirst`, `PostOrder`, `BreadthFirst`, `Leaves`, `TryFind`, `TryFindPath`, `Count`, `Height` over any
     node type, given a children function. Pooled stack/queue, no recursion.
   - Collection expressions for `Deque`, `CircularBuffer` and `BTreeSet`.
+  - `BTreeDictionary` and `Trie` implement `IDictionary<TKey, TValue>`; `BTreeSet` implements `ISet<T>` and
+    `IReadOnlySet<T>` (`UnionWith`, `IntersectWith`, `IsSubsetOf`, … and `CopyTo`).
+  - `RoaringBitmap`: in-place `UnionWith` / `IntersectWith` / `ExceptWith` / `SymmetricExceptWith` (unchanged
+    containers are kept, not copied), `IntersectionCount` / `UnionCount` / `Overlaps` / `IsSubsetOf` without building
+    the result, `RemoveRange`, and `RoaringBitmap.Union(...)` of many bitmaps at once.
+  - `RangeSet<T>`: canonical half-open ranges with add/remove, `Contains`, `Overlaps`, union, intersection and
+    difference (#5).
+  - `FenwickTree<T>`: prefix and range sums in O(log n) for any `INumber<T>`, with `LowerBound` / `UpperBound` for
+    weighted sampling (#7).
+- **Text** (`Bojalib.Text`)
+  - `AhoCorasick<TValue>`: compiled multi-pattern matcher reporting every (overlapping) match with its pattern and
+    value, allocation-free (#4).
 - **Probabilistic** (`Bojalib.Probabilistic`): `BloomFilter<T>` (SIMD split-block), `BinaryFuseFilter<T>`,
-  `HyperLogLog<T>`, `CountMinSketch<T>`, `TDigest` (streaming quantiles), `TopK<T>` (Space-Saving heavy hitters) —
-  serializable where it makes sense, with stable hashing for strings and primitives.
+  `HyperLogLog<T>`, `CountMinSketch<T>`, `TDigest` (streaming quantiles), `TopK<T>` (Space-Saving heavy hitters),
+  `CuckooFilter<T>` (membership with deletion, #8), `MinHash<T>` (Jaccard similarity, #9) — serializable where it
+  makes sense, with stable hashing for strings and primitives.
 - Trimming and Native AOT compatible.
 
 ### Fixed

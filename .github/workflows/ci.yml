@@ -64,6 +64,30 @@ jobs:
           name: packages
           path: artifacts/
 
+  arm64:
+    # Real ARM64 hardware, so the NEON (Vector128) paths run natively instead of being simulated on x64 with
+    # DOTNET_EnableAVX2=0.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Bojalib.slnx --configuration Release
+
+      - name: Test (NEON paths)
+        run: dotnet test --project tests/Bojalib.Tests --configuration Release --no-build
+
+      - name: Test without SIMD (scalar fallbacks on ARM64)
+        run: dotnet test --project tests/Bojalib.Tests --configuration Release --no-build
+        env:
+          DOTNET_EnableHWIntrinsic: 0
+
   native-aot:
     # Publishes a sample using every public type with Native AOT; any trimming/AOT warning fails the build.
     runs-on: ubuntu-latest
