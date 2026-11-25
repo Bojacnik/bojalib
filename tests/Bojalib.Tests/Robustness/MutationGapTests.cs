@@ -214,7 +214,7 @@ public class MutationGapTests
         {
             T[] expected = [.. data];
             Array.Sort(expected);
-            foreach (Action<T[]> sort in (ReadOnlySpan<Action<T[]>>)[static a => InsertionSort.Sort<T>(a), static a => HeapSort.Sort<T>(a), static a => MergeSort.Sort<T>(a), static a => BubbleSort.Sort<T>(a), static a => Selection.PartialSort<T>(a, a.Length)])
+            foreach (Action<T[]> sort in (ReadOnlySpan<Action<T[]>>)[static a => InsertionSort.Sort<T>(a), static a => HeapSort.Sort<T>(a), static a => MergeSort.Sort<T>(a), static a => Selection.PartialSort<T>(a, a.Length)])
             {
                 T[] actual = [.. data];
                 sort(actual);
@@ -233,15 +233,4 @@ public class MutationGapTests
         Check([.. Enumerable.Range(0, 300).Select(_ => (ushort)random.Next(3))]);
     }
 
-    [Test]
-    public void BubbleSort_FloatingPoint_UsesNaNAwareOrdering()
-    {
-        double[] data = [3, double.NaN, -0.0, double.NegativeInfinity, double.NaN, 1];
-        double[] expected = [.. data];
-        Array.Sort(expected);
-
-        BubbleSort.Sort<double>(data);
-
-        data.Should().Equal(expected, static (a, b) => a.Equals(b));
-    }
 }

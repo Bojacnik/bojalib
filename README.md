@@ -21,7 +21,6 @@ dotnet add package Bojalib
 | | `RadixSort` | Integers of any width, O(n) |
 | | `StringSort` | Ordinal string sort (multikey quicksort) |
 | | `MergeSort` | Stable, adaptive (TimSort-style) |
-| | `HeapSort`, `InsertionSort`, `BubbleSort` | Classic algorithms, same API |
 | | `Selection` | n-th element (median, percentiles) and partial sort (top-k) without a full sort |
 | | `SortedSpan` | Branchless `LowerBound` / `UpperBound` / `EqualRange`, SIMD `IsSorted` |
 | `Bojalib.Collections` | `BTreeDictionary<TKey, TValue>`, `BTreeSet<T>` | Sorted collections with O(log n) "i-th item" and rank queries |
@@ -132,7 +131,9 @@ var cache = new LruCache<string, Token>(capacity: 1000, StringComparer.Ordinal);
 ```
 
 `BTreeDictionary` and `Trie` implement `IDictionary<TKey, TValue>`, and `BTreeSet` implements `ISet<T>` and
-`IReadOnlySet<T>`, so they work with any API that takes the BCL interfaces.
+`IReadOnlySet<T>`, so they work with any API that takes the BCL interfaces. Their `Keys` and `Values` are live
+collections with an O(1) `Count` and allocation-free enumeration; on a `BTreeDictionary`, `Keys[i]` is the i-th
+smallest key in O(log n).
 
 `RoaringBitmap` reads bitmaps written with run-length containers, but stores and writes runs as array or bitmap
 containers. Long runs therefore take more memory than in CRoaring: `AddRange(0, 10_000_000)` uses about 1.2 MB here
@@ -197,7 +198,6 @@ your own numbers.
 | `RadixSort` | 0.59 µs (0.85) | 157 µs (0.25) | 19.8 ms (0.20) |
 | `ParallelSort` (4 cores) | 0.62 µs (0.89) | 309 µs (0.48) | 32.8 ms (0.34) |
 | `MergeSort` (stable) | 2.0 µs (2.87) | 980 µs (1.53) | 150 ms (1.55) |
-| `HeapSort` | 0.94 µs (1.34) | 938 µs (1.47) | 161 ms (1.65) |
 
 None of them allocate, except `ParallelSort` at 1M (13 KB of task bookkeeping). Below 64K elements `ParallelSort`
 is just `QuickSort`. On this shared VM it gained only 1.2× over `QuickSort` at 1M; its scaling on real many-core

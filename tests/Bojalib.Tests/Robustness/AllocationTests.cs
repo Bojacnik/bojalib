@@ -163,6 +163,37 @@ public class AllocationTests
     }
 
     [Test]
+#pragma warning disable CA1841 // Keys.Contains is what is being measured.
+    public void KeyAndValueCollections()
+    {
+        var tree = new BTreeDictionary<int, int>();
+        var trie = new Trie<int>();
+        for (int i = 0; i < 1000; i++)
+        {
+            tree[i] = i;
+            trie[i.ToString(System.Globalization.CultureInfo.InvariantCulture)] = i;
+        }
+
+        _ = tree.Keys;
+        _ = tree.Values;
+        _ = trie.Keys;
+        _ = trie.Values;
+        ShouldNotAllocate("BTreeDictionary.Keys / Values", () =>
+        {
+            foreach (int _ in tree.Keys) { }
+            foreach (int _ in tree.Values) { }
+            _ = tree.Keys.Count + tree.Keys[500] + (tree.Keys.Contains(3) ? 1 : 0);
+        });
+        ShouldNotAllocate("Trie.Keys / Values", () =>
+        {
+            foreach (string _ in trie.Keys) { }
+            foreach (int _ in trie.Values) { }
+            _ = trie.Keys.Count + (trie.Keys.Contains("42") ? 1 : 0);
+        });
+    }
+#pragma warning restore CA1841
+
+    [Test]
     public void NewCollectionsAndText()
     {
         var fenwick = new FenwickTree<long>(1000);

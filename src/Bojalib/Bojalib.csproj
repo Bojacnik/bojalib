@@ -9,10 +9,11 @@
     <IsAotCompatible>true</IsAotCompatible>
     <!-- Needed only for [module: SkipLocalsInit] (no pointer code): stackalloc'd buffers aren't zeroed first. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Validates the package on pack. After 2.0.0 is on nuget.org, uncomment the baseline so any 2.x
-         release that breaks code compiled against 2.0.0 fails to pack. -->
+    <!-- Validates the package on pack against the last release, so any change that would break code compiled
+         against it fails to pack. The intended breaks of 3.0.0 are listed in CompatibilitySuppressions.xml; after
+         3.0.0 is on nuget.org, set the baseline to 3.0.0 and delete that file. -->
     <EnablePackageValidation>true</EnablePackageValidation>
-    <!-- <PackageValidationBaselineVersion>2.0.0</PackageValidationBaselineVersion> -->
+    <PackageValidationBaselineVersion>2.0.0</PackageValidationBaselineVersion>
   </PropertyGroup>
 
   <ItemGroup>

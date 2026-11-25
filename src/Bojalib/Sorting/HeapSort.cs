@@ -4,8 +4,11 @@ using Bojalib.Sorting.Internal;
 namespace Bojalib.Sorting;
 
 /// <summary>In-place heapsort: O(n log n) in every case with no extra memory. Not stable.</summary>
-/// <remarks><see langword="null"/>s and NaNs sort first, matching <see cref="Comparer{T}.Default"/>.</remarks>
-public static class HeapSort
+/// <remarks>
+/// Internal since 3.0: it is <see cref="QuickSort"/>'s worst-case fallback, and this entry point lets the tests drive
+/// that path directly on any input. <see langword="null"/>s and NaNs sort first, matching <see cref="Comparer{T}.Default"/>.
+/// </remarks>
+internal static class HeapSort
 {
     /// <summary>Sorts <paramref name="span"/> in ascending order using <see cref="IComparable{T}"/>.</summary>
     /// <typeparam name="T">The element type.</typeparam>

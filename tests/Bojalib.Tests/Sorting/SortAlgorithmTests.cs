@@ -229,17 +229,6 @@ public sealed class InsertionSortTests : StableSortAlgorithmTests
     protected override void Sort<T>(Span<T> span, Comparison<T> comparison) => InsertionSort.Sort(span, comparison);
 }
 
-public sealed class BubbleSortTests : StableSortAlgorithmTests
-{
-    protected override int LargeLength => 2_000;
-
-    protected override void Sort<T>(Span<T> span) => BubbleSort.Sort(span);
-
-    protected override void Sort<T>(Span<T> span, IComparer<T>? comparer) => BubbleSort.Sort(span, comparer);
-
-    protected override void Sort<T>(Span<T> span, Comparison<T> comparison) => BubbleSort.Sort(span, comparison);
-}
-
 public sealed class MergeSortTests : StableSortAlgorithmTests
 {
     protected override void Sort<T>(Span<T> span) => MergeSort.Sort(span);

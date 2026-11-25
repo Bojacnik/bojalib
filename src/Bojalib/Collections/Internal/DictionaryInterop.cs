@@ -1,47 +1,4 @@
-using System.Collections;
-
 namespace Bojalib.Collections.Internal;
-
-/// <summary>
-/// A live, read-only <see cref="ICollection{T}"/> over a sequence whose count is known, as returned by
-/// <see cref="IDictionary{TKey, TValue}.Keys"/> and <see cref="IDictionary{TKey, TValue}.Values"/>.
-/// </summary>
-internal sealed class ReadOnlyCollectionView<T>(IEnumerable<T> items, Func<int> count, Func<T, bool> contains)
-    : ICollection<T>, IReadOnlyCollection<T>
-{
-    public int Count => count();
-
-    public bool IsReadOnly => true;
-
-    public bool Contains(T item) => contains(item);
-
-    public void CopyTo(T[] array, int arrayIndex)
-    {
-        ArgumentNullException.ThrowIfNull(array);
-        ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex);
-        if (array.Length - arrayIndex < Count)
-        {
-            throw new ArgumentException("The destination array is too short.", nameof(array));
-        }
-
-        foreach (T item in items)
-        {
-            array[arrayIndex++] = item;
-        }
-    }
-
-    public IEnumerator<T> GetEnumerator() => items.GetEnumerator();
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-    public void Add(T item) => throw ReadOnly();
-
-    public void Clear() => throw ReadOnly();
-
-    public bool Remove(T item) => throw ReadOnly();
-
-    private static NotSupportedException ReadOnly() => new("The collection is read-only.");
-}
 
 /// <summary>The <see cref="ICollection{T}"/> members of a dictionary, in terms of its own operations.</summary>
 internal static class DictionaryInterop

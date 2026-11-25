@@ -49,6 +49,8 @@ public sealed partial class Trie<TValue> : IDictionary<string, TValue>, IReadOnl
 
     private int _count;
     private int _version;
+    private KeyCollection? _keys;
+    private ValueCollection? _values;
 
     // Key string -> node holding it, for exact lookups at hash-table speed.
     private readonly Dictionary<string, int> _index;
@@ -77,11 +79,11 @@ public sealed partial class Trie<TValue> : IDictionary<string, TValue>, IReadOnl
     /// <summary>Gets whether the trie has no keys.</summary>
     public bool IsEmpty => _count == 0;
 
-    /// <summary>Gets all keys, in key order.</summary>
-    public IEnumerable<string> Keys => this.Select(static pair => pair.Key);
+    /// <summary>Gets the keys, in key order: a live view with O(1) <c>Count</c> and hash-speed <c>Contains</c>.</summary>
+    public KeyCollection Keys => _keys ??= new(this);
 
-    /// <summary>Gets all values, in the order of their keys.</summary>
-    public IEnumerable<TValue> Values => this.Select(static pair => pair.Value);
+    /// <summary>Gets the values, in the order of their keys: a live view with O(1) <c>Count</c>.</summary>
+    public ValueCollection Values => _values ??= new(this);
 
     /// <summary>Gets or sets the value for <paramref name="key"/>. Setting adds the key or replaces its value.</summary>
     /// <param name="key">The key.</param>
@@ -349,10 +351,13 @@ public sealed partial class Trie<TValue> : IDictionary<string, TValue>, IReadOnl
 
     IEnumerator<KeyValuePair<string, TValue>> IEnumerable<KeyValuePair<string, TValue>>.GetEnumerator() => GetEnumerator();
 
-    ICollection<string> IDictionary<string, TValue>.Keys => new ReadOnlyCollectionView<string>(Keys, () => _count, ContainsKey);
+    ICollection<string> IDictionary<string, TValue>.Keys => Keys;
 
-    ICollection<TValue> IDictionary<string, TValue>.Values =>
-        new ReadOnlyCollectionView<TValue>(Values, () => _count, value => DictionaryInterop.ContainsValue(this, value));
+    ICollection<TValue> IDictionary<string, TValue>.Values => Values;
+
+    IEnumerable<string> IReadOnlyDictionary<string, TValue>.Keys => Keys;
+
+    IEnumerable<TValue> IReadOnlyDictionary<string, TValue>.Values => Values;
 
     bool ICollection<KeyValuePair<string, TValue>>.IsReadOnly => false;
 

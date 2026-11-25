@@ -3,6 +3,44 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [3.0.0]
+
+New data structures, BCL collection interfaces, more Roaring operations, and a smaller public API. The breaking
+changes are all small; most code compiles against 3.0 unchanged.
+
+### Migrating from 2.x
+
+| 2.x | 3.0 |
+|---|---|
+| `BubbleSort.Sort(span)` | Removed. Use `QuickSort.Sort(span)`, or `MergeSort.Sort(span)` if you need a stable sort |
+| `HeapSort.Sort(span)` | No longer public. `QuickSort` already falls back to heapsort, so its worst case is O(n log n); use `QuickSort.Sort(span)` |
+| `InsertionSort.Sort(span)` | No longer public. `QuickSort` uses insertion sort for small ranges; use `MergeSort.Sort(span)` for a stable sort |
+| `RoaringBitmapBuilder.Create(values)` | `RoaringBitmap.Create(values)`. Collection expressions (`RoaringBitmap ids = [1, 2, 3];`) work as before |
+| `BTreeDictionary.Keys` / `.Values` returned `IEnumerable<T>` | They return `KeyCollection` / `ValueCollection`: live views with O(1) `Count`, `Contains`, `CopyTo`, positional `Keys[i]` / `Values[i]` in O(log n), and allocation-free enumeration. They still implement `IEnumerable<T>`, so code that only enumerates compiles unchanged; recompile, as the return type changed |
+| `Trie.Keys` / `.Values` returned `IEnumerable<T>` | They return `KeyCollection` / `ValueCollection` (as above, without positional access) |
+
+### Added
+- **Collections**
+  - `RangeSet<T>`: canonical half-open ranges with add/remove, `Contains`, `Overlaps`, union, intersection and
+    difference (#5).
+  - `FenwickTree<T>`: prefix and range sums in O(log n) for any `INumber<T>`, with `LowerBound` / `UpperBound` for
+    weighted sampling (#7).
+  - `BTreeDictionary` and `Trie` implement `IDictionary<TKey, TValue>`; `BTreeSet` implements `ISet<T>` and
+    `IReadOnlySet<T>` (`UnionWith`, `IntersectWith`, `IsSubsetOf`, … and `CopyTo`).
+  - `RoaringBitmap`: in-place `UnionWith` / `IntersectWith` / `ExceptWith` / `SymmetricExceptWith` (unchanged
+    containers are kept, not copied), `IntersectionCount` / `UnionCount` / `Overlaps` / `IsSubsetOf` without building
+    the result, `RemoveRange`, and `RoaringBitmap.Union(...)` of many bitmaps at once.
+- **Text** (new namespace `Bojalib.Text`)
+  - `AhoCorasick<TValue>`: compiled multi-pattern matcher reporting every (overlapping) match with its pattern and
+    value, allocation-free (#4).
+- **Probabilistic**
+  - `CuckooFilter<T>`: set membership with deletion (#8).
+  - `MinHash<T>`: Jaccard similarity from fixed-size, mergeable, serializable signatures (#9).
+
+### Changed
+- Package validation now checks every build against the previous release, so unintended breaking changes fail to
+  pack.
+
 ## [2.0.0]
 
 A redesign. Bojalib is now a single package with a consistent, .NET-style API; nearly every public type changed.
@@ -53,22 +91,9 @@ Requires .NET 10.
   - `Tree`: `DepthFirst`, `PostOrder`, `BreadthFirst`, `Leaves`, `TryFind`, `TryFindPath`, `Count`, `Height` over any
     node type, given a children function. Pooled stack/queue, no recursion.
   - Collection expressions for `Deque`, `CircularBuffer` and `BTreeSet`.
-  - `BTreeDictionary` and `Trie` implement `IDictionary<TKey, TValue>`; `BTreeSet` implements `ISet<T>` and
-    `IReadOnlySet<T>` (`UnionWith`, `IntersectWith`, `IsSubsetOf`, … and `CopyTo`).
-  - `RoaringBitmap`: in-place `UnionWith` / `IntersectWith` / `ExceptWith` / `SymmetricExceptWith` (unchanged
-    containers are kept, not copied), `IntersectionCount` / `UnionCount` / `Overlaps` / `IsSubsetOf` without building
-    the result, `RemoveRange`, and `RoaringBitmap.Union(...)` of many bitmaps at once.
-  - `RangeSet<T>`: canonical half-open ranges with add/remove, `Contains`, `Overlaps`, union, intersection and
-    difference (#5).
-  - `FenwickTree<T>`: prefix and range sums in O(log n) for any `INumber<T>`, with `LowerBound` / `UpperBound` for
-    weighted sampling (#7).
-- **Text** (`Bojalib.Text`)
-  - `AhoCorasick<TValue>`: compiled multi-pattern matcher reporting every (overlapping) match with its pattern and
-    value, allocation-free (#4).
 - **Probabilistic** (`Bojalib.Probabilistic`): `BloomFilter<T>` (SIMD split-block), `BinaryFuseFilter<T>`,
-  `HyperLogLog<T>`, `CountMinSketch<T>`, `TDigest` (streaming quantiles), `TopK<T>` (Space-Saving heavy hitters),
-  `CuckooFilter<T>` (membership with deletion, #8), `MinHash<T>` (Jaccard similarity, #9) — serializable where it
-  makes sense, with stable hashing for strings and primitives.
+  `HyperLogLog<T>`, `CountMinSketch<T>`, `TDigest` (streaming quantiles), `TopK<T>` (Space-Saving heavy hitters) —
+  serializable where it makes sense, with stable hashing for strings and primitives.
 - Trimming and Native AOT compatible.
 
 ### Fixed

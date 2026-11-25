@@ -140,4 +140,109 @@ public class CollectionInterfaceTests
             set.Invoking(call).Should().Throw<ArgumentNullException>();
         }
     }
+
+    private static readonly int[] Probes = [0, 7, 250, 499];
+
+    [Test]
+    public void KeyAndValueCollections_MatchSortedDictionary()
+    {
+        Gen.Dictionary(Gen.Int[0, 500], Gen.Int[0, 20])[0, 200].Sample(entries =>
+        {
+            var reference = new SortedDictionary<int, int>(entries);
+            var tree = new BTreeDictionary<int, int>();
+            var trie = new Trie<int>();
+            foreach ((int key, int value) in entries)
+            {
+                tree[key] = value;
+                trie[key.ToString("D3", System.Globalization.CultureInfo.InvariantCulture)] = value;
+            }
+
+            BTreeDictionary<int, int>.KeyCollection keys = tree.Keys;
+            keys.Should().Equal(reference.Keys);
+            tree.Values.Should().Equal(reference.Values);
+            keys.Count.Should().Be(reference.Count);
+            tree.Values.Count.Should().Be(reference.Count);
+            for (int i = 0; i < reference.Count; i++)
+            {
+                keys[i].Should().Be(reference.Keys.ElementAt(i));
+                tree.Values[i].Should().Be(reference.Values.ElementAt(i));
+            }
+
+            trie.Keys.Should().Equal(reference.Keys.Select(static k => k.ToString("D3", System.Globalization.CultureInfo.InvariantCulture)));
+            trie.Values.Should().Equal(reference.Values);
+            trie.Keys.Count.Should().Be(reference.Count);
+            trie.Values.Count.Should().Be(reference.Count);
+
+            foreach (int probe in Probes)
+            {
+                keys.Contains(probe).Should().Be(reference.ContainsKey(probe));
+                tree.Values.Contains(probe).Should().Be(reference.ContainsValue(probe));
+#pragma warning disable CA1841 // The point is to test Keys.Contains itself.
+                trie.Keys.Contains(probe.ToString("D3", System.Globalization.CultureInfo.InvariantCulture)).Should().Be(reference.ContainsKey(probe));
+#pragma warning restore CA1841
+                trie.Values.Contains(probe).Should().Be(reference.ContainsValue(probe));
+            }
+        }, iter: TestScale.Iterations(500));
+    }
+
+    [Test]
+    public void KeyAndValueCollections_AreLiveViewsWithStructEnumerators()
+    {
+        var tree = new BTreeDictionary<string, int>(StringComparer.Ordinal) { ["b"] = 2 };
+        BTreeDictionary<string, int>.KeyCollection keys = tree.Keys;
+        tree.Keys.Should().BeSameAs(keys, "the view is created once");
+        tree["a"] = 1;
+        keys.Should().Equal("a", "b");
+        tree.Invoking(t => t.Keys[2]).Should().Throw<ArgumentOutOfRangeException>();
+        tree.Invoking(t => t.Values[-1]).Should().Throw<ArgumentOutOfRangeException>();
+
+        int[] values = new int[3];
+        tree.Values.CopyTo(values, 1);
+        values.Should().Equal(0, 1, 2);
+        tree.Values.Invoking(v => v.CopyTo(new int[1], 0)).Should().Throw<ArgumentException>();
+        tree.Values.Invoking(v => v.CopyTo(null!, 0)).Should().Throw<ArgumentNullException>();
+        tree.Values.Invoking(v => v.CopyTo(values, -1)).Should().Throw<ArgumentOutOfRangeException>();
+        ((ICollection<int>)tree.Values).IsReadOnly.Should().BeTrue();
+        ((ICollection<int>)tree.Values).Invoking(v => v.Add(1)).Should().Throw<NotSupportedException>();
+        ((ICollection<int>)tree.Values).Invoking(v => v.Remove(1)).Should().Throw<NotSupportedException>();
+        ((ICollection<int>)tree.Values).Invoking(v => v.Clear()).Should().Throw<NotSupportedException>();
+        ((System.Collections.IEnumerable)tree.Values).Cast<int>().Should().Equal(1, 2);
+        ((IReadOnlyDictionary<string, int>)tree).Keys.Should().Equal("a", "b");
+        ((IReadOnlyDictionary<string, int>)tree).Values.Should().Equal(1, 2);
+
+        BTreeDictionary<string, int>.KeyCollection.Enumerator e = keys.GetEnumerator();
+        e.MoveNext().Should().BeTrue();
+        ((System.Collections.IEnumerator)e).Current.Should().Be("a");
+        e.Reset();
+        e.MoveNext().Should().BeTrue();
+        e.Current.Should().Be("a");
+        e.Dispose();
+        BTreeDictionary<string, int>.ValueCollection.Enumerator v = tree.Values.GetEnumerator();
+        v.MoveNext().Should().BeTrue();
+        ((System.Collections.IEnumerator)v).Current.Should().Be(1);
+        v.Reset();
+        v.Dispose();
+
+        var trie = new Trie<int> { ["x"] = 9 };
+        Trie<int>.KeyCollection trieKeys = trie.Keys;
+        trie["w"] = 8;
+        trieKeys.Should().Equal("w", "x");
+        trie.Keys.Should().BeSameAs(trieKeys);
+        ((IReadOnlyDictionary<string, int>)trie).Keys.Should().Equal("w", "x");
+        ((IReadOnlyDictionary<string, int>)trie).Values.Should().Equal(8, 9);
+        string[] names = new string[2];
+        trieKeys.CopyTo(names, 0);
+        names.Should().Equal("w", "x");
+        Trie<int>.ValueCollection.Enumerator tv = trie.Values.GetEnumerator();
+        tv.MoveNext().Should().BeTrue();
+        ((System.Collections.IEnumerator)tv).Current.Should().Be(8);
+        tv.Reset();
+        tv.Dispose();
+        Trie<int>.KeyCollection.Enumerator tk = trieKeys.GetEnumerator();
+        tk.MoveNext().Should().BeTrue();
+        ((System.Collections.IEnumerator)tk).Current.Should().Be("w");
+        tk.Reset();
+        tk.Dispose();
+        ((System.Collections.IEnumerable)trie.Keys).Cast<string>().Should().HaveCount(2);
+    }
 }

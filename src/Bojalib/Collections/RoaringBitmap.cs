@@ -7,24 +7,6 @@ using Bojalib.Collections.Internal;
 
 namespace Bojalib.Collections;
 
-/// <summary>Creates <see cref="RoaringBitmap"/> instances; also enables collection expressions.</summary>
-public static class RoaringBitmapBuilder
-{
-    /// <summary>Creates a bitmap holding <paramref name="values"/>.</summary>
-    /// <param name="values">The values.</param>
-    /// <returns>The bitmap.</returns>
-    public static RoaringBitmap Create(ReadOnlySpan<uint> values)
-    {
-        var bitmap = new RoaringBitmap();
-        foreach (uint value in values)
-        {
-            bitmap.Add(value);
-        }
-
-        return bitmap;
-    }
-}
-
 /// <summary>
 /// A compressed set of 32-bit unsigned integers (a Roaring bitmap, Lemire et al.): the structure behind the indexes of
 /// Lucene, Spark, Druid, ClickHouse and many databases. Sets of IDs take a fraction of the memory of a
@@ -46,7 +28,7 @@ public static class RoaringBitmapBuilder
 /// </para>
 /// </remarks>
 [DebuggerDisplay("Count = {Count}")]
-[CollectionBuilder(typeof(RoaringBitmapBuilder), nameof(RoaringBitmapBuilder.Create))]
+[CollectionBuilder(typeof(RoaringBitmap), nameof(Create))]
 public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<RoaringBitmap>
 {
     private const uint CookieNoRuns = 12346;
@@ -83,6 +65,20 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
         _keys = keys;
         _containers = containers;
         _size = size;
+    }
+
+    /// <summary>Creates a bitmap holding <paramref name="values"/>; also what collection expressions (<c>[1, 2, 3]</c>) call.</summary>
+    /// <param name="values">The values, in any order; duplicates are ignored.</param>
+    /// <returns>The bitmap.</returns>
+    public static RoaringBitmap Create(ReadOnlySpan<uint> values)
+    {
+        var bitmap = new RoaringBitmap();
+        foreach (uint value in values)
+        {
+            bitmap.Add(value);
+        }
+
+        return bitmap;
     }
 
     /// <summary>Gets the number of values (up to 2^32, hence <see langword="long"/>).</summary>

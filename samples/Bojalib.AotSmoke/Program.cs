@@ -32,9 +32,6 @@ Check(work.AsSpan().SequenceEqual(expected), "RadixSort");
 work = [.. ints];
 MergeSort.Sort<int>(work, static (a, b) => a.CompareTo(b));
 Check(work.AsSpan().SequenceEqual(expected), "MergeSort");
-work = [.. ints];
-HeapSort.Sort<int>(work);
-Check(work.AsSpan().SequenceEqual(expected), "HeapSort");
 double[] doubles = [3, double.NaN, -0.0, 1];
 QuickSort.Sort<double>(doubles);
 Check(double.IsNaN(doubles[0]) && doubles[^1] == 3, "QuickSort doubles");
@@ -49,9 +46,6 @@ work = [.. ints];
 Selection.Select<int>(work, 500);
 Check(work[500] == expected[500], "Selection");
 Check(SortedSpan.LowerBound<int>(expected, expected[10]) <= 10 && SortedSpan.IsSorted<int>(expected), "SortedSpan");
-InsertionSort.Sort<int>(work.AsSpan(0, 50));
-BubbleSort.Sort<int>(work.AsSpan(50, 50));
-Check(SortedSpan.IsSorted<int>(work.AsSpan(0, 50)), "InsertionSort");
 
 // Collections
 var trie = new Trie<int>(ignoreCase: true) { ["hello"] = 1, ["help"] = 2 };

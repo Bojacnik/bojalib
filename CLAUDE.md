@@ -1,16 +1,21 @@
 # Bojalib — notes for Claude
 
 High-performance .NET 10 library: SIMD/parallel sorting, B-trees, tries, Roaring bitmaps, probabilistic structures.
-See `README.md` for the API, `CONTRIBUTING.md` for layout and conventions, `CHANGELOG.md` for 2.0.0 contents.
+See `README.md` for the API, `CONTRIBUTING.md` for layout and conventions, `CHANGELOG.md` for what each release contains.
 
 ## Status
 
-- 2.0.0 is on `main` (PR #1 merged) but not released or tagged yet.
-- No public API is frozen yet: breaking changes are still free until 2.0.0 ships.
-- Added after PR #1, from issues #4, #5, #7, #8, #9: `AhoCorasick` (new `Bojalib.Text` namespace), `RangeSet`,
+- 2.0.0 is released (tag `v2.0.0`, on nuget.org). Check `git tag` / nuget.org rather than trusting this file: a
+  fresh clone may not have fetched the tags.
+- 3.0.0 is being prepared in PR #11; it is not tagged yet. Its breaking changes are listed in `CHANGELOG.md`
+  ("Migrating from 2.x") and in `src/Bojalib/CompatibilitySuppressions.xml`. Package validation runs against 2.0.0,
+  so any break not in that file fails `dotnet pack`. After 3.0.0 ships, set `PackageValidationBaselineVersion` to
+  3.0.0 and delete the suppression file; from then on, 3.x must stay compatible.
+- In 3.0.0, from issues #4, #5, #7, #8, #9: `AhoCorasick` (new `Bojalib.Text` namespace), `RangeSet`,
   `FenwickTree`, `CuckooFilter`, `MinHash`; plus `IDictionary` / `ISet` on the B-tree types and `Trie`, and in-place
   set operations, counts and `RemoveRange` on `RoaringBitmap`. #6 (rank/select BitVector) was closed as overlapping
-  `RoaringBitmap`.
+  `RoaringBitmap`. Breaking: `BubbleSort` removed, `HeapSort` / `InsertionSort` internal, `RoaringBitmapBuilder`
+  folded into `RoaringBitmap.Create`, `Keys` / `Values` return `KeyCollection` / `ValueCollection`.
 
 ## Heavy testing (done in the 2.0.0 cycle)
 
@@ -67,7 +72,7 @@ DOTNET_EnableHWIntrinsic=0 dotnet test --project tests/Bojalib.Tests -c Release
 - `AhoCorasick` costs ~3.5 ns per text char regardless of pattern count; the DFA is latency-bound (one dependent
   table load per char). Vectorized `IndexOf` per pattern beats it below roughly 10–100 patterns.
 - `Trie` uses 3–5× the memory of `Dictionary<string, T>` for the same keys (1M keys: 160–180 MB vs 37 MB).
-- With `--coverlet`, the test suite takes ~6 minutes instead of ~30 s; most of that is the existing `ParallelSort`
+- With `--coverlet`, the test suite takes ~3 minutes instead of ~30 s; most of that is the existing `ParallelSort`
   and sorting tests under instrumentation.
 
 ## Conventions learned so far
