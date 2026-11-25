@@ -121,13 +121,13 @@ public sealed class HyperLogLog<T>
     /// <summary>Resets the sketch to empty.</summary>
     public void Clear() => Array.Clear(_registers);
 
-    /// <summary>Serializes the sketch: one byte of precision followed by the registers.</summary>
+    /// <summary>Serializes the sketch: the 4-byte Bojalib header, one byte of precision, then the registers.</summary>
     /// <returns>The sketch's bytes.</returns>
     public byte[] ToBytes()
     {
-        byte[] bytes = new byte[1 + _registers.Length];
-        bytes[0] = (byte)Precision;
-        _registers.CopyTo(bytes, 1);
+        byte[] bytes = SerializedFormat.Create(SerializedKind.HyperLogLog, 1 + _registers.Length, out Span<byte> body);
+        body[0] = (byte)Precision;
+        _registers.CopyTo(body[1..]);
         return bytes;
     }
 
@@ -140,6 +140,7 @@ public sealed class HyperLogLog<T>
     public static HyperLogLog<T> FromBytes(ReadOnlySpan<byte> bytes, Func<T, ulong>? hasher = null)
 #pragma warning restore CA1000
     {
+        bytes = SerializedFormat.Body(bytes, SerializedKind.HyperLogLog, nameof(bytes));
         if (bytes.IsEmpty || bytes[0] is < 4 or > 18 || bytes.Length != 1 + (1 << bytes[0]))
         {
             throw new ArgumentException("Not a serialized HyperLogLog sketch.", nameof(bytes));

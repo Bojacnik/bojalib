@@ -18,6 +18,7 @@ changes are all small; most code compiles against 3.0 unchanged.
 | `RoaringBitmapBuilder.Create(values)` | `RoaringBitmap.Create(values)`. Collection expressions (`RoaringBitmap ids = [1, 2, 3];`) work as before |
 | `BTreeDictionary.Keys` / `.Values` returned `IEnumerable<T>` | They return `KeyCollection` / `ValueCollection`: live views with O(1) `Count`, `Contains`, `CopyTo`, positional `Keys[i]` / `Values[i]` in O(log n), and allocation-free enumeration. They still implement `IEnumerable<T>`, so code that only enumerates compiles unchanged; recompile, as the return type changed |
 | `Trie.Keys` / `.Values` returned `IEnumerable<T>` | They return `KeyCollection` / `ValueCollection` (as above, without positional access) |
+| Payloads saved with `ToBytes()` by 2.x (`BloomFilter`, `BinaryFuseFilter`, `HyperLogLog`, `CountMinSketch`, `TDigest`) | Not readable by 3.0: `FromBytes` throws `ArgumentException`. Rebuild the structures from their source data and save them again. `RoaringBitmap` uses the standard Roaring format and is unaffected |
 
 ### Added
 - **Collections**
@@ -38,6 +39,10 @@ changes are all small; most code compiles against 3.0 unchanged.
   - `MinHash<T>`: Jaccard similarity from fixed-size, mergeable, serializable signatures (#9).
 
 ### Changed
+- Every `ToBytes()` payload in `Bojalib.Probabilistic` starts with a 4-byte header: `B`, `J`, the structure's type
+  and its format version. `FromBytes` now rejects another structure's bytes ("the data holds a HyperLogLog"),
+  foreign data and newer format versions instead of loading them as garbage, and future formats can change
+  without silently misreading old data. The exact bytes of each format are pinned by tests.
 - Package validation now checks every build against the previous release, so unintended breaking changes fail to
   pack.
 

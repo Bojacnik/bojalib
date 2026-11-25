@@ -180,6 +180,7 @@ foreach (string shingle in Shingles(text2)) doc2.Add(shingle);
 double similarity = doc1.Similarity(doc2);                                                // Jaccard; std. error ≤ 4.4%
 
 byte[] saved = known.ToBytes();   // stable hashing: reload in another process or machine
+var reloaded = BinaryFuseFilter<string>.FromBytes(saved);   // checks the type and format version first
 ```
 
 ## Benchmarks

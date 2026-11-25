@@ -138,15 +138,15 @@ public sealed class MinHash<T>
     /// <summary>Resets the sketch to empty.</summary>
     public void Clear() => _minima.AsSpan().Fill(ulong.MaxValue);
 
-    /// <summary>Serializes the sketch (little-endian): the signature size, then the minima.</summary>
+    /// <summary>Serializes the sketch (little-endian): the 4-byte Bojalib header, the signature size, then the minima.</summary>
     /// <returns>The sketch's bytes.</returns>
     public byte[] ToBytes()
     {
-        byte[] bytes = new byte[HeaderBytes + (_minima.Length * 8)];
-        BinaryPrimitives.WriteInt32LittleEndian(bytes, _minima.Length);
+        byte[] bytes = SerializedFormat.Create(SerializedKind.MinHash, HeaderBytes + (_minima.Length * 8), out Span<byte> body);
+        BinaryPrimitives.WriteInt32LittleEndian(body, _minima.Length);
         for (int i = 0; i < _minima.Length; i++)
         {
-            BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(HeaderBytes + (i * 8)), _minima[i]);
+            BinaryPrimitives.WriteUInt64LittleEndian(body[(HeaderBytes + (i * 8))..], _minima[i]);
         }
 
         return bytes;
@@ -161,6 +161,7 @@ public sealed class MinHash<T>
     public static MinHash<T> FromBytes(ReadOnlySpan<byte> bytes, Func<T, ulong>? hasher = null)
 #pragma warning restore CA1000
     {
+        bytes = SerializedFormat.Body(bytes, SerializedKind.MinHash, nameof(bytes));
         if (bytes.Length < HeaderBytes)
         {
             throw new ArgumentException("Not a serialized MinHash sketch.", nameof(bytes));

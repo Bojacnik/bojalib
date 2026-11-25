@@ -101,6 +101,6 @@ public class MinHashTests
         var sketch = new MinHash<string>(4);
         sketch.Add("bojalib");
         sketch.Add("bojalib");
-        Convert.ToHexString(sketch.ToBytes()).Should().Be("040000008B5E7B2689757389404E2BE1875AF2A7DEA379CDD34D12E63039E20FF1BB2671");
+        Convert.ToHexString(sketch.ToBytes()).Should().Be("424A0601040000008B5E7B2689757389404E2BE1875AF2A7DEA379CDD34D12E63039E20FF1BB2671");
     }
 }

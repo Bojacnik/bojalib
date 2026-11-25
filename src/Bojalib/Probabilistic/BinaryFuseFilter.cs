@@ -159,8 +159,8 @@ public sealed class BinaryFuseFilter<T>
     /// <returns>The filter's bytes.</returns>
     public byte[] ToBytes()
     {
-        byte[] bytes = new byte[HeaderBytes + ByteCount];
-        Span<byte> header = bytes;
+        byte[] bytes = SerializedFormat.Create(SerializedKind.BinaryFuseFilter, HeaderBytes + ByteCount, out Span<byte> body);
+        Span<byte> header = body;
         BinaryPrimitives.WriteUInt64LittleEndian(header, _seed);
         BinaryPrimitives.WriteInt32LittleEndian(header[8..], _segmentLength);
         BinaryPrimitives.WriteInt32LittleEndian(header[12..], _segmentCountLength / _segmentLength);
@@ -168,13 +168,13 @@ public sealed class BinaryFuseFilter<T>
         BinaryPrimitives.WriteInt32LittleEndian(header[20..], FingerprintBits);
         if (_fingerprints8 is not null)
         {
-            _fingerprints8.CopyTo(bytes, HeaderBytes);
+            _fingerprints8.CopyTo(body[HeaderBytes..]);
         }
         else
         {
             for (int i = 0; i < _fingerprints16!.Length; i++)
             {
-                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(HeaderBytes + (i * 2)), _fingerprints16[i]);
+                BinaryPrimitives.WriteUInt16LittleEndian(body[(HeaderBytes + (i * 2))..], _fingerprints16[i]);
             }
         }
 
@@ -190,6 +190,7 @@ public sealed class BinaryFuseFilter<T>
     public static BinaryFuseFilter<T> FromBytes(ReadOnlySpan<byte> bytes, Func<T, ulong>? hasher = null)
 #pragma warning restore CA1000
     {
+        bytes = SerializedFormat.Body(bytes, SerializedKind.BinaryFuseFilter, nameof(bytes));
         if (bytes.Length < HeaderBytes)
         {
             throw new ArgumentException("Too short to be a serialized filter.", nameof(bytes));

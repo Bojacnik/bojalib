@@ -138,16 +138,16 @@ public sealed class BloomFilter<T>
     /// <returns>The filter's bytes.</returns>
     public byte[] ToBytes()
     {
-        byte[] bytes = new byte[ByteCount];
+        byte[] bytes = SerializedFormat.Create(SerializedKind.BloomFilter, ByteCount, out Span<byte> body);
         if (BitConverter.IsLittleEndian)
         {
-            MemoryMarshal.AsBytes(_words.AsSpan()).CopyTo(bytes);
+            MemoryMarshal.AsBytes(_words.AsSpan()).CopyTo(body);
         }
         else
         {
             for (int i = 0; i < _words.Length; i++)
             {
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(i * 4), _words[i]);
+                BinaryPrimitives.WriteUInt32LittleEndian(body[(i * 4)..], _words[i]);
             }
         }
 
@@ -163,6 +163,7 @@ public sealed class BloomFilter<T>
     public static BloomFilter<T> FromBytes(ReadOnlySpan<byte> bytes, Func<T, ulong>? hasher = null)
 #pragma warning restore CA1000
     {
+        bytes = SerializedFormat.Body(bytes, SerializedKind.BloomFilter, nameof(bytes));
         if (bytes.IsEmpty || bytes.Length % BytesPerBlock != 0)
         {
             throw new ArgumentException("Expected a non-empty whole number of 32-byte blocks.", nameof(bytes));

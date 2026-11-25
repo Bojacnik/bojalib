@@ -197,8 +197,7 @@ public sealed class TDigest
     public byte[] ToBytes()
     {
         Flush();
-        byte[] bytes = new byte[HeaderBytes + (_centroidCount * 16)];
-        Span<byte> span = bytes;
+        byte[] bytes = SerializedFormat.Create(SerializedKind.TDigest, HeaderBytes + (_centroidCount * 16), out Span<byte> span);
         BinaryPrimitives.WriteDoubleLittleEndian(span, Compression);
         BinaryPrimitives.WriteInt64LittleEndian(span[8..], Count);
         BinaryPrimitives.WriteDoubleLittleEndian(span[16..], Min);
@@ -219,6 +218,7 @@ public sealed class TDigest
     /// <exception cref="ArgumentException"><paramref name="bytes"/> is not a serialized digest.</exception>
     public static TDigest FromBytes(ReadOnlySpan<byte> bytes)
     {
+        bytes = SerializedFormat.Body(bytes, SerializedKind.TDigest, nameof(bytes));
         if (bytes.Length < HeaderBytes)
         {
             throw new ArgumentException("Not a serialized t-digest.", nameof(bytes));

@@ -77,6 +77,10 @@ DOTNET_EnableHWIntrinsic=0 dotnet test --project tests/Bojalib.Tests -c Release
 
 ## Conventions learned so far
 
+- Probabilistic payloads share a 4-byte header (`Probabilistic/SerializedFormat.cs`: magic, kind, version) and
+  their bytes are pinned in `SerializedFormatTests`. To change a format, bump that kind's version and keep a
+  reader for the old one; never change bytes under an existing version.
+
 - Measure before claiming performance; put real numbers (and honest regressions) in the docs.
 - Every data structure gets a model-based CsCheck test against a simple reference implementation.
 - Keep branch coverage comfortably above 90% *without* AVX-512, since CI runners may lack it.
