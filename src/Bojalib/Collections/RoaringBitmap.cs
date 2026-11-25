@@ -7,24 +7,6 @@ using Bojalib.Collections.Internal;
 
 namespace Bojalib.Collections;
 
-/// <summary>Creates <see cref="RoaringBitmap"/> instances; also enables collection expressions.</summary>
-public static class RoaringBitmapBuilder
-{
-    /// <summary>Creates a bitmap holding <paramref name="values"/>.</summary>
-    /// <param name="values">The values.</param>
-    /// <returns>The bitmap.</returns>
-    public static RoaringBitmap Create(ReadOnlySpan<uint> values)
-    {
-        var bitmap = new RoaringBitmap();
-        foreach (uint value in values)
-        {
-            bitmap.Add(value);
-        }
-
-        return bitmap;
-    }
-}
-
 /// <summary>
 /// A compressed set of 32-bit unsigned integers (a Roaring bitmap, Lemire et al.): the structure behind the indexes of
 /// Lucene, Spark, Druid, ClickHouse and many databases. Sets of IDs take a fraction of the memory of a
@@ -46,7 +28,7 @@ public static class RoaringBitmapBuilder
 /// </para>
 /// </remarks>
 [DebuggerDisplay("Count = {Count}")]
-[CollectionBuilder(typeof(RoaringBitmapBuilder), nameof(RoaringBitmapBuilder.Create))]
+[CollectionBuilder(typeof(RoaringBitmap), nameof(Create))]
 public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<RoaringBitmap>
 {
     private const uint CookieNoRuns = 12346;
@@ -83,6 +65,20 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
         _keys = keys;
         _containers = containers;
         _size = size;
+    }
+
+    /// <summary>Creates a bitmap holding <paramref name="values"/>; also what collection expressions (<c>[1, 2, 3]</c>) call.</summary>
+    /// <param name="values">The values, in any order; duplicates are ignored.</param>
+    /// <returns>The bitmap.</returns>
+    public static RoaringBitmap Create(ReadOnlySpan<uint> values)
+    {
+        var bitmap = new RoaringBitmap();
+        foreach (uint value in values)
+        {
+            bitmap.Add(value);
+        }
+
+        return bitmap;
     }
 
     /// <summary>Gets the number of values (up to 2^32, hence <see langword="long"/>).</summary>
@@ -242,6 +238,271 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
         }
 
         _version++;
+    }
+
+    /// <summary>Removes every value in [<paramref name="start"/>, <paramref name="end"/>], clearing whole chunks and bitmap words at a time.</summary>
+    /// <param name="start">The first value.</param>
+    /// <param name="end">The last value (inclusive).</param>
+    /// <exception cref="ArgumentException"><paramref name="end"/> is less than <paramref name="start"/>.</exception>
+    public void RemoveRange(uint start, uint end)
+    {
+        if (end < start)
+        {
+            throw new ArgumentException("The range ends before it starts.", nameof(end));
+        }
+
+        ushort firstKey = (ushort)(start >> 16);
+        ushort lastKey = (ushort)(end >> 16);
+        int index = IndexOfKey(firstKey);
+        if (index < 0)
+        {
+            index = ~index;
+        }
+
+        while (index < _size && _keys[index] <= lastKey)
+        {
+            ushort key = _keys[index];
+            int low = key == firstKey ? (ushort)start : 0;
+            int high = key == lastKey ? (ushort)end : 0xFFFF;
+            RoaringContainer? remaining;
+            if (low == 0 && high == 0xFFFF)
+            {
+                remaining = null;
+            }
+            else if (_containers[index] is ArrayContainer array)
+            {
+                ReadOnlySpan<ushort> values = array.Span;
+                int from = values.BinarySearch((ushort)low);
+                from = from < 0 ? ~from : from;
+                int to = values.BinarySearch((ushort)high);
+                to = to < 0 ? ~to : to + 1;
+                Array.Copy(array.Values, to, array.Values, from, array.Count - to);
+                array.Count -= to - from;
+                remaining = RoaringContainer.Normalize(array);
+            }
+            else
+            {
+                var bitmap = (BitmapContainer)_containers[index];
+                bitmap.ClearRange(low, high);
+                bitmap.RecountCardinality();
+                remaining = RoaringContainer.Normalize(bitmap);
+            }
+
+            if (remaining is null)
+            {
+                RemoveContainer(index);
+            }
+            else
+            {
+                _containers[index] = remaining;
+                index++;
+            }
+        }
+
+        _version++;
+    }
+
+    /// <summary>Adds every value of <paramref name="other"/> to this bitmap (in-place union).</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void UnionWith(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (!ReferenceEquals(other, this))
+        {
+            Adopt(Combine(this, other, RoaringOps.Operation.Or, inPlace: true));
+        }
+    }
+
+    /// <summary>Keeps only the values that are also in <paramref name="other"/> (in-place intersection).</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void IntersectWith(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (!ReferenceEquals(other, this))
+        {
+            Adopt(Combine(this, other, RoaringOps.Operation.And, inPlace: true));
+        }
+    }
+
+    /// <summary>Removes every value of <paramref name="other"/> from this bitmap (in-place difference).</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void ExceptWith(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (ReferenceEquals(other, this))
+        {
+            Clear();
+            return;
+        }
+
+        Adopt(Combine(this, other, RoaringOps.Operation.AndNot, inPlace: true));
+    }
+
+    /// <summary>Keeps the values that are in exactly one of this bitmap and <paramref name="other"/> (in-place symmetric difference).</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void SymmetricExceptWith(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (ReferenceEquals(other, this))
+        {
+            Clear();
+            return;
+        }
+
+        Adopt(Combine(this, other, RoaringOps.Operation.Xor, inPlace: true));
+    }
+
+    /// <summary>Returns the size of the intersection with <paramref name="other"/> without building it.</summary>
+    /// <remarks>The other set sizes follow from it: |A ∪ B| = |A| + |B| − |A ∩ B|, |A − B| = |A| − |A ∩ B|.</remarks>
+    /// <param name="other">Another bitmap.</param>
+    /// <returns>The number of values in both bitmaps.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public long IntersectionCount(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        long count = 0;
+        int i = 0;
+        int j = 0;
+        while (i < _size && j < other._size)
+        {
+            ushort a = _keys[i];
+            ushort b = other._keys[j];
+            if (a == b)
+            {
+                count += RoaringOps.AndCount(_containers[i], other._containers[j]);
+            }
+
+            i += a <= b ? 1 : 0;
+            j += a >= b ? 1 : 0;
+        }
+
+        return count;
+    }
+
+    /// <summary>Returns the size of the union with <paramref name="other"/> without building it.</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <returns>The number of values in either bitmap.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public long UnionCount(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Count + other.Count - IntersectionCount(other);
+    }
+
+    /// <summary>Returns whether the two bitmaps share at least one value.</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <returns><see langword="true"/> if they intersect.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool Overlaps(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        int i = 0;
+        int j = 0;
+        while (i < _size && j < other._size)
+        {
+            ushort a = _keys[i];
+            ushort b = other._keys[j];
+            if (a == b && RoaringOps.AndCount(_containers[i], other._containers[j]) > 0)
+            {
+                return true;
+            }
+
+            i += a <= b ? 1 : 0;
+            j += a >= b ? 1 : 0;
+        }
+
+        return false;
+    }
+
+    /// <summary>Returns whether every value of this bitmap is in <paramref name="other"/>.</summary>
+    /// <param name="other">Another bitmap.</param>
+    /// <returns><see langword="true"/> if this bitmap is a subset.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool IsSubsetOf(RoaringBitmap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        int j = 0;
+        for (int i = 0; i < _size; i++)
+        {
+            while (j < other._size && other._keys[j] < _keys[i])
+            {
+                j++;
+            }
+
+            if (j == other._size || other._keys[j] != _keys[i] ||
+                RoaringOps.AndCount(_containers[i], other._containers[j]) != _containers[i].Cardinality)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the union of all <paramref name="bitmaps"/>. Faster than combining them pairwise: each chunk of the
+    /// result is accumulated once, however many bitmaps contribute to it.
+    /// </summary>
+    /// <param name="bitmaps">The bitmaps.</param>
+    /// <returns>A new bitmap.</returns>
+    /// <exception cref="ArgumentNullException">One of the bitmaps is <see langword="null"/>.</exception>
+    public static RoaringBitmap Union(params ReadOnlySpan<RoaringBitmap> bitmaps)
+    {
+        var byKey = new Dictionary<ushort, List<RoaringContainer>>();
+        foreach (RoaringBitmap bitmap in bitmaps)
+        {
+            ArgumentNullException.ThrowIfNull(bitmap, nameof(bitmaps));
+            for (int i = 0; i < bitmap._size; i++)
+            {
+                if (!byKey.TryGetValue(bitmap._keys[i], out List<RoaringContainer>? list))
+                {
+                    byKey[bitmap._keys[i]] = list = [];
+                }
+
+                list.Add(bitmap._containers[i]);
+            }
+        }
+
+        ushort[] keys = [.. byKey.Keys];
+        Array.Sort(keys);
+        var result = new RoaringBitmap(new ushort[Math.Max(4, keys.Length)], new RoaringContainer[Math.Max(4, keys.Length)], 0);
+        foreach (ushort key in keys)
+        {
+            List<RoaringContainer> parts = byKey[key];
+            if (parts.Count == 1)
+            {
+                result.Append(key, parts[0].Clone());
+                continue;
+            }
+
+            var accumulator = new BitmapContainer();
+            foreach (RoaringContainer part in parts)
+            {
+                if (part is BitmapContainer bits)
+                {
+                    for (int w = 0; w < BitmapContainer.WordCount; w++)
+                    {
+                        accumulator.Words[w] |= bits.Words[w];
+                    }
+                }
+                else
+                {
+                    foreach (ushort value in ((ArrayContainer)part).Span)
+                    {
+                        accumulator.Words[value >> 6] |= 1UL << value;
+                    }
+                }
+            }
+
+            accumulator.RecountCardinality();
+            result.Append(key, RoaringContainer.Normalize(accumulator)!);
+        }
+
+        return result;
     }
 
     /// <summary>Removes <paramref name="value"/>.</summary>
@@ -531,7 +792,8 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
     }
 
     // Walks both key lists like a merge, combining the containers that share a key.
-    private static RoaringBitmap Combine(RoaringBitmap left, RoaringBitmap right, RoaringOps.Operation op)
+    // With inPlace, the result takes over left's containers instead of copying them, so left must be discarded.
+    private static RoaringBitmap Combine(RoaringBitmap left, RoaringBitmap right, RoaringOps.Operation op, bool inPlace = false)
     {
         ArgumentNullException.ThrowIfNull(left);
         ArgumentNullException.ThrowIfNull(right);
@@ -544,7 +806,9 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
             ushort b = right._keys[j];
             if (a == b)
             {
-                RoaringContainer? combined = RoaringOps.Apply(left._containers[i], right._containers[j], op);
+                RoaringContainer? combined = inPlace
+                    ? RoaringOps.ApplyInPlace(left._containers[i], right._containers[j], op)
+                    : RoaringOps.Apply(left._containers[i], right._containers[j], op);
                 if (combined is not null)
                 {
                     result.Append(a, combined);
@@ -557,7 +821,7 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
             {
                 if (op != RoaringOps.Operation.And)
                 {
-                    result.Append(a, left._containers[i].Clone());
+                    result.Append(a, inPlace ? left._containers[i] : left._containers[i].Clone());
                 }
 
                 i++;
@@ -577,7 +841,7 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
         {
             for (; i < left._size; i++)
             {
-                result.Append(left._keys[i], left._containers[i].Clone());
+                result.Append(left._keys[i], inPlace ? left._containers[i] : left._containers[i].Clone());
             }
 
             if (op is RoaringOps.Operation.Or or RoaringOps.Operation.Xor)
@@ -593,6 +857,14 @@ public sealed class RoaringBitmap : IReadOnlyCollection<uint>, IEquatable<Roarin
     }
 
     private void Append(ushort key, RoaringContainer container) => InsertContainer(_size, key, container);
+
+    private void Adopt(RoaringBitmap result)
+    {
+        _keys = result._keys;
+        _containers = result._containers;
+        _size = result._size;
+        _version++;
+    }
 
     private int IndexOfKey(ushort key) => _keys.AsSpan(0, _size).BinarySearch(key);
 

@@ -157,7 +157,7 @@ public class HyperLogLogTests
 
         // Regression (found by fuzzing): a register value larger than any real rank used to crash Estimate().
         byte[] corrupt = new HyperLogLog<int>(4).ToBytes();
-        corrupt[3] = 200;
+        corrupt[4 + 1 + 2] = 200; // header, precision byte, then register 2
         FluentActions.Invoking(() => HyperLogLog<int>.FromBytes(corrupt)).Should().Throw<ArgumentException>();
     }
 }

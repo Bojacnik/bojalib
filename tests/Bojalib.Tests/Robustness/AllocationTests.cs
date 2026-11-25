@@ -1,6 +1,7 @@
 using Bojalib.Collections;
 using Bojalib.Probabilistic;
 using Bojalib.Sorting;
+using Bojalib.Text;
 
 namespace Bojalib.Tests.Robustness;
 
@@ -153,5 +154,70 @@ public class AllocationTests
         ShouldNotAllocate("CountMinSketch", () => { cms.Add(i2++); _ = cms.Estimate(i2); });
         ShouldNotAllocate("TDigest.Add (including periodic merges)", () => { for (int k = 0; k < 2000; k++) { digest.Add(k % 913); } });
         ShouldNotAllocate("TopK.Add for tracked items", () => { top.Add(i2++ % 100); });
+
+        var cuckoo = new CuckooFilter<int>(100_000);
+        var minHash = new MinHash<int>();
+        var other = new MinHash<int>();
+        ShouldNotAllocate("CuckooFilter", () => { cuckoo.TryAdd(i2); _ = cuckoo.MightContain(i2); cuckoo.Remove(i2++); });
+        ShouldNotAllocate("MinHash", () => { minHash.Add(i2++); _ = minHash.Similarity(other); });
+    }
+
+    [Test]
+#pragma warning disable CA1841 // Keys.Contains is what is being measured.
+    public void KeyAndValueCollections()
+    {
+        var tree = new BTreeDictionary<int, int>();
+        var trie = new Trie<int>();
+        for (int i = 0; i < 1000; i++)
+        {
+            tree[i] = i;
+            trie[i.ToString(System.Globalization.CultureInfo.InvariantCulture)] = i;
+        }
+
+        _ = tree.Keys;
+        _ = tree.Values;
+        _ = trie.Keys;
+        _ = trie.Values;
+        ShouldNotAllocate("BTreeDictionary.Keys / Values", () =>
+        {
+            foreach (int _ in tree.Keys) { }
+            foreach (int _ in tree.Values) { }
+            _ = tree.Keys.Count + tree.Keys[500] + (tree.Keys.Contains(3) ? 1 : 0);
+        });
+        ShouldNotAllocate("Trie.Keys / Values", () =>
+        {
+            foreach (string _ in trie.Keys) { }
+            foreach (int _ in trie.Values) { }
+            _ = trie.Keys.Count + (trie.Keys.Contains("42") ? 1 : 0);
+        });
+    }
+#pragma warning restore CA1841
+
+    [Test]
+    public void NewCollectionsAndText()
+    {
+        var fenwick = new FenwickTree<long>(1000);
+        int i = 0;
+        ShouldNotAllocate("FenwickTree", () => { fenwick.Add(i++ % 1000, 3); _ = fenwick.PrefixSum(500) + fenwick.LowerBound(100); });
+
+        var ranges = new RangeSet<int>();
+        for (int r = 0; r < 100; r++)
+        {
+            ranges.Add(r * 10, (r * 10) + 5);
+        }
+
+        ShouldNotAllocate("RangeSet queries and enumeration", () =>
+        {
+            _ = ranges.Contains(42) && ranges.Overlaps(40, 60);
+            foreach (HalfOpenRange<int> _ in ranges) { }
+        });
+
+        AhoCorasick<string> keywords = AhoCorasick.Create(["error", "warn", "timeout", "rror"]);
+        string log = string.Concat(Enumerable.Repeat("12:00 warn: request timeout; error 500. ", 50));
+        ShouldNotAllocate("AhoCorasick matching", () =>
+        {
+            foreach (AhoCorasick<string>.Match _ in keywords.EnumerateMatches(log)) { }
+            _ = keywords.CountMatches(log);
+        });
     }
 }

@@ -28,7 +28,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>data-structures;collections;sorting;algorithms;trie;tree;utility</PackageTags>
+    <PackageTags>data-structures;collections;algorithms;sorting;simd;btree;roaring;bitmap;trie;aho-corasick;bloom-filter;cuckoo-filter;hyperloglog;tdigest;minhash;probabilistic</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

@@ -25,7 +25,7 @@ namespace Bojalib.Collections;
 /// <typeparam name="TKey">The key type.</typeparam>
 /// <typeparam name="TValue">The value type.</typeparam>
 [DebuggerDisplay("Count = {Count}")]
-public sealed class BTreeDictionary<TKey, TValue> : IReadOnlyDictionary<TKey, TValue>
+public sealed partial class BTreeDictionary<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
     where TKey : notnull
 {
     private const int LeafCapacity = 64;
@@ -40,6 +40,8 @@ public sealed class BTreeDictionary<TKey, TValue> : IReadOnlyDictionary<TKey, TV
     private Leaf _last;
     private int _count;
     private int _version;
+    private KeyCollection? _keys;
+    private ValueCollection? _values;
 
     /// <summary>Creates an empty dictionary.</summary>
     /// <param name="comparer">Orders the keys; <see langword="null"/> for <see cref="Comparer{T}.Default"/>.</param>
@@ -58,11 +60,11 @@ public sealed class BTreeDictionary<TKey, TValue> : IReadOnlyDictionary<TKey, TV
     /// <summary>Gets the comparer that orders the keys.</summary>
     public IComparer<TKey> Comparer => _comparer ?? Comparer<TKey>.Default;
 
-    /// <summary>Gets all keys, in order.</summary>
-    public IEnumerable<TKey> Keys => this.Select(static pair => pair.Key);
+    /// <summary>Gets the keys, in order: a live view with O(1) <c>Count</c>, O(log n) <c>Contains</c> and <c>Keys[i]</c>.</summary>
+    public KeyCollection Keys => _keys ??= new(this);
 
-    /// <summary>Gets all values, in key order.</summary>
-    public IEnumerable<TValue> Values => this.Select(static pair => pair.Value);
+    /// <summary>Gets the values, in key order: a live view with O(1) <c>Count</c> and O(log n) <c>Values[i]</c>.</summary>
+    public ValueCollection Values => _values ??= new(this);
 
     /// <summary>Gets the entry with the smallest key.</summary>
     /// <exception cref="InvalidOperationException">The dictionary is empty.</exception>
@@ -234,6 +236,24 @@ public sealed class BTreeDictionary<TKey, TValue> : IReadOnlyDictionary<TKey, TV
     public Enumerator GetEnumerator() => new(this, _first, 0, default!, bounded: false);
 
     IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() => GetEnumerator();
+
+    ICollection<TKey> IDictionary<TKey, TValue>.Keys => Keys;
+
+    ICollection<TValue> IDictionary<TKey, TValue>.Values => Values;
+
+    IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => Keys;
+
+    IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => Values;
+
+    bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => false;
+
+    void ICollection<KeyValuePair<TKey, TValue>>.Add(KeyValuePair<TKey, TValue> item) => Add(item.Key, item.Value);
+
+    bool ICollection<KeyValuePair<TKey, TValue>>.Contains(KeyValuePair<TKey, TValue> item) => DictionaryInterop.Contains(this, item);
+
+    void ICollection<KeyValuePair<TKey, TValue>>.CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => DictionaryInterop.CopyTo(this, array, arrayIndex);
+
+    bool ICollection<KeyValuePair<TKey, TValue>>.Remove(KeyValuePair<TKey, TValue> item) => DictionaryInterop.Contains(this, item) && Remove(item.Key);
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

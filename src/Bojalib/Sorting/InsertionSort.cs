@@ -4,8 +4,12 @@ using Bojalib.Sorting.Internal;
 namespace Bojalib.Sorting;
 
 /// <summary>In-place, stable insertion sort. O(n²), but the fastest choice for small or nearly sorted inputs.</summary>
-/// <remarks><see langword="null"/>s and NaNs sort first, matching <see cref="Comparer{T}.Default"/>.</remarks>
-public static class InsertionSort
+/// <remarks>
+/// Internal since 3.0: <see cref="QuickSort"/> and <see cref="Selection"/> already use it for small ranges, and this
+/// entry point lets the tests drive it directly. <see langword="null"/>s and NaNs sort first, matching
+/// <see cref="Comparer{T}.Default"/>.
+/// </remarks>
+internal static class InsertionSort
 {
     /// <summary>Sorts <paramref name="span"/> in ascending order using <see cref="IComparable{T}"/>.</summary>
     /// <typeparam name="T">The element type.</typeparam>

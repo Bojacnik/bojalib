@@ -34,7 +34,7 @@ public static class BTreeSet
 /// <typeparam name="T">The element type.</typeparam>
 [DebuggerDisplay("Count = {Count}")]
 [CollectionBuilder(typeof(BTreeSet), nameof(BTreeSet.Create))]
-public sealed class BTreeSet<T> : IReadOnlyList<T>
+public sealed class BTreeSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyList<T>
     where T : notnull
 {
     private readonly BTreeDictionary<T, NoValue> _tree;
@@ -122,6 +122,224 @@ public sealed class BTreeSet<T> : IReadOnlyList<T>
 
     /// <summary>Removes all elements.</summary>
     public void Clear() => _tree.Clear();
+
+    /// <summary>Copies the elements, in sorted order, to <paramref name="array"/>.</summary>
+    /// <param name="array">The destination.</param>
+    /// <param name="arrayIndex">Where to start writing.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="array"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="arrayIndex"/> is negative.</exception>
+    /// <exception cref="ArgumentException">The array is too short.</exception>
+    public void CopyTo(T[] array, int arrayIndex)
+    {
+        ArgumentNullException.ThrowIfNull(array);
+        ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex);
+        if (array.Length - arrayIndex < Count)
+        {
+            throw new ArgumentException("The destination array is too short.", nameof(array));
+        }
+
+        foreach (T item in this)
+        {
+            array[arrayIndex++] = item;
+        }
+    }
+
+    /// <summary>Adds every element of <paramref name="other"/>.</summary>
+    /// <param name="other">The elements to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void UnionWith(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (ReferenceEquals(other, this))
+        {
+            return;
+        }
+
+        foreach (T item in other)
+        {
+            Add(item);
+        }
+    }
+
+    /// <summary>Removes every element of <paramref name="other"/>.</summary>
+    /// <param name="other">The elements to remove.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void ExceptWith(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (ReferenceEquals(other, this))
+        {
+            Clear();
+            return;
+        }
+
+        foreach (T item in other)
+        {
+            Remove(item);
+        }
+    }
+
+    /// <summary>Keeps only the elements that are also in <paramref name="other"/>.</summary>
+    /// <param name="other">The elements to keep.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void IntersectWith(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (ReferenceEquals(other, this) || Count == 0)
+        {
+            return;
+        }
+
+        BTreeSet<T> keep = AsSet(other);
+        var drop = new List<T>();
+        foreach (T item in this)
+        {
+            if (!keep.Contains(item))
+            {
+                drop.Add(item);
+            }
+        }
+
+        foreach (T item in drop)
+        {
+            Remove(item);
+        }
+    }
+
+    /// <summary>Keeps the elements that are in exactly one of this set and <paramref name="other"/>.</summary>
+    /// <param name="other">The other elements.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public void SymmetricExceptWith(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (ReferenceEquals(other, this))
+        {
+            Clear();
+            return;
+        }
+
+        foreach (T item in AsSet(other))
+        {
+            if (!Remove(item))
+            {
+                Add(item);
+            }
+        }
+    }
+
+    /// <summary>Returns whether every element of this set is in <paramref name="other"/>.</summary>
+    /// <param name="other">The other elements.</param>
+    /// <returns><see langword="true"/> if this set is a subset.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool IsSubsetOf(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        BTreeSet<T> set = AsSet(other);
+        return Count <= set.Count && ContainedIn(set);
+    }
+
+    /// <summary>Returns whether this set is a subset of <paramref name="other"/> and smaller than it.</summary>
+    /// <param name="other">The other elements.</param>
+    /// <returns><see langword="true"/> if this set is a proper subset.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool IsProperSubsetOf(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        BTreeSet<T> set = AsSet(other);
+        return Count < set.Count && ContainedIn(set);
+    }
+
+    /// <summary>Returns whether every element of <paramref name="other"/> is in this set.</summary>
+    /// <param name="other">The other elements.</param>
+    /// <returns><see langword="true"/> if this set is a superset.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool IsSupersetOf(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        foreach (T item in other)
+        {
+            if (!Contains(item))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Returns whether this set is a superset of <paramref name="other"/> and larger than it.</summary>
+    /// <param name="other">The other elements.</param>
+    /// <returns><see langword="true"/> if this set is a proper superset.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool IsProperSupersetOf(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        BTreeSet<T> set = AsSet(other);
+        return Count > set.Count && set.ContainedIn(this);
+    }
+
+    /// <summary>Returns whether this set and <paramref name="other"/> share at least one element.</summary>
+    /// <param name="other">The other elements.</param>
+    /// <returns><see langword="true"/> if they overlap.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool Overlaps(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        foreach (T item in other)
+        {
+            if (Contains(item))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Returns whether this set and <paramref name="other"/> contain the same elements (duplicates in <paramref name="other"/> are ignored).</summary>
+    /// <param name="other">The other elements.</param>
+    /// <returns><see langword="true"/> if they are equal as sets.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is <see langword="null"/>.</exception>
+    public bool SetEquals(IEnumerable<T> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        BTreeSet<T> set = AsSet(other);
+        return Count == set.Count && ContainedIn(set);
+    }
+
+    void ICollection<T>.Add(T item) => Add(item);
+
+    bool ICollection<T>.IsReadOnly => false;
+
+    // Other elements as a set with this set's ordering, so membership means the same on both sides.
+    private BTreeSet<T> AsSet(IEnumerable<T> other)
+    {
+        if (other is BTreeSet<T> set && set.Comparer.Equals(Comparer))
+        {
+            return set;
+        }
+
+        var copy = new BTreeSet<T>(Comparer);
+        foreach (T item in other)
+        {
+            copy.Add(item);
+        }
+
+        return copy;
+    }
+
+    private bool ContainedIn(BTreeSet<T> other)
+    {
+        foreach (T item in this)
+        {
+            if (!other.Contains(item))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>Enumerates the elements in sorted order.</summary>
     /// <returns>An allocation-free enumerator.</returns>

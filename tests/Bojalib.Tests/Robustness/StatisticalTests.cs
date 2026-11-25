@@ -63,6 +63,29 @@ public class StatisticalTests
     }
 
     [Test]
+    public void CuckooFilter_FalsePositiveRateAtHighLoadAcrossRuns([Values(8, 16)] int bits)
+    {
+        var rates = new List<double>();
+        double bound = 0;
+        for (int run = 0; run < Runs; run++)
+        {
+            var filter = new CuckooFilter<int>(20_000, bits);
+            bound = filter.FalsePositiveRate;
+            int member = run * 1_000_000;
+            while (filter.LoadFactor < 0.9)
+            {
+                filter.Add(member++);
+            }
+
+            int[] others = [.. Enumerable.Range((run * 1_000_000) + 500_000, 200_000)];
+            rates.Add(others.Count(filter.MightContain) / (double)others.Length);
+        }
+
+        // At 90% load the expected rate is about 0.9 of the full-load bound.
+        rates.Average().Should().BeInRange(0.6 * bound, 1.0 * bound, "{0}-bit fingerprints, bound {1:P4}", bits, bound);
+    }
+
+    [Test]
     public void TDigest_TailAccuracyAcrossRuns()
     {
         double worstP99 = 0;

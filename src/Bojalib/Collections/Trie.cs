@@ -33,7 +33,7 @@ namespace Bojalib.Collections;
 /// </remarks>
 /// <typeparam name="TValue">The value type.</typeparam>
 [DebuggerDisplay("Count = {Count}")]
-public sealed partial class Trie<TValue> : IReadOnlyDictionary<string, TValue>
+public sealed partial class Trie<TValue> : IDictionary<string, TValue>, IReadOnlyDictionary<string, TValue>
 {
     private const int Root = 0;
     private const int FreeMarker = -2;
@@ -49,6 +49,8 @@ public sealed partial class Trie<TValue> : IReadOnlyDictionary<string, TValue>
 
     private int _count;
     private int _version;
+    private KeyCollection? _keys;
+    private ValueCollection? _values;
 
     // Key string -> node holding it, for exact lookups at hash-table speed.
     private readonly Dictionary<string, int> _index;
@@ -77,11 +79,11 @@ public sealed partial class Trie<TValue> : IReadOnlyDictionary<string, TValue>
     /// <summary>Gets whether the trie has no keys.</summary>
     public bool IsEmpty => _count == 0;
 
-    /// <summary>Gets all keys, in key order.</summary>
-    public IEnumerable<string> Keys => this.Select(static pair => pair.Key);
+    /// <summary>Gets the keys, in key order: a live view with O(1) <c>Count</c> and hash-speed <c>Contains</c>.</summary>
+    public KeyCollection Keys => _keys ??= new(this);
 
-    /// <summary>Gets all values, in the order of their keys.</summary>
-    public IEnumerable<TValue> Values => this.Select(static pair => pair.Value);
+    /// <summary>Gets the values, in the order of their keys: a live view with O(1) <c>Count</c>.</summary>
+    public ValueCollection Values => _values ??= new(this);
 
     /// <summary>Gets or sets the value for <paramref name="key"/>. Setting adds the key or replaces its value.</summary>
     /// <param name="key">The key.</param>
@@ -348,6 +350,24 @@ public sealed partial class Trie<TValue> : IReadOnlyDictionary<string, TValue>
     public Enumerator GetEnumerator() => new(this, Root);
 
     IEnumerator<KeyValuePair<string, TValue>> IEnumerable<KeyValuePair<string, TValue>>.GetEnumerator() => GetEnumerator();
+
+    ICollection<string> IDictionary<string, TValue>.Keys => Keys;
+
+    ICollection<TValue> IDictionary<string, TValue>.Values => Values;
+
+    IEnumerable<string> IReadOnlyDictionary<string, TValue>.Keys => Keys;
+
+    IEnumerable<TValue> IReadOnlyDictionary<string, TValue>.Values => Values;
+
+    bool ICollection<KeyValuePair<string, TValue>>.IsReadOnly => false;
+
+    void ICollection<KeyValuePair<string, TValue>>.Add(KeyValuePair<string, TValue> item) => Add(item.Key, item.Value);
+
+    bool ICollection<KeyValuePair<string, TValue>>.Contains(KeyValuePair<string, TValue> item) => DictionaryInterop.Contains(this, item);
+
+    void ICollection<KeyValuePair<string, TValue>>.CopyTo(KeyValuePair<string, TValue>[] array, int arrayIndex) => DictionaryInterop.CopyTo(this, array, arrayIndex);
+
+    bool ICollection<KeyValuePair<string, TValue>>.Remove(KeyValuePair<string, TValue> item) => DictionaryInterop.Contains(this, item) && Remove(item.Key);
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

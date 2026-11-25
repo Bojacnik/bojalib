@@ -4,9 +4,9 @@
 [![NuGet](https://img.shields.io/nuget/v/Bojalib.svg)](https://www.nuget.org/packages/Bojalib)
 
 Fast algorithms and specialized data structures that .NET doesn't include: SIMD and parallel sorting,
-order-statistic B-trees, radix tries with fuzzy search, decrease-key priority queues, deques, probabilistic filters
-and sketches, interval trees and more. Allocation-free where it
-matters, no dependencies, trimming and Native AOT compatible.
+order-statistic B-trees, Roaring bitmaps, radix tries with fuzzy search, Aho-Corasick multi-pattern search,
+decrease-key priority queues, deques, range sets, Fenwick trees, probabilistic filters and sketches, interval trees
+and more. Allocation-free where it matters, no dependencies, trimming and Native AOT compatible.
 
 ```sh
 dotnet add package Bojalib
@@ -21,7 +21,6 @@ dotnet add package Bojalib
 | | `RadixSort` | Integers of any width, O(n) |
 | | `StringSort` | Ordinal string sort (multikey quicksort) |
 | | `MergeSort` | Stable, adaptive (TimSort-style) |
-| | `HeapSort`, `InsertionSort`, `BubbleSort` | Classic algorithms, same API |
 | | `Selection` | n-th element (median, percentiles) and partial sort (top-k) without a full sort |
 | | `SortedSpan` | Branchless `LowerBound` / `UpperBound` / `EqualRange`, SIMD `IsSorted` |
 | `Bojalib.Collections` | `BTreeDictionary<TKey, TValue>`, `BTreeSet<T>` | Sorted collections with O(log n) "i-th item" and rank queries |
@@ -34,12 +33,15 @@ dotnet add package Bojalib
 | | `DisjointSet`, `DisjointSet<T>` | Union-find |
 | | `LruCache<TKey, TValue>` | Single-threaded, allocation-free LRU cache for hot paths |
 | | `Tree` | Depth-first, breadth-first, post-order and leaf traversals of *your own* node types |
+| `Bojalib.Text` | `AhoCorasick<TValue>` | Find every occurrence of many patterns in one pass |
 | `Bojalib.Probabilistic` | `BloomFilter<T>` | Set membership for a growing set (SIMD split-block) |
 | | `BinaryFuseFilter<T>` | Set membership for a fixed set: ~30% smaller than Bloom |
+| | `CuckooFilter<T>` | Set membership with deletion |
 | | `HyperLogLog<T>` | Count distinct items in a few KB |
 | | `CountMinSketch<T>` | Approximate frequency of each item in a stream |
 | | `TopK<T>` | The most frequent items in a stream, with error bounds (Space-Saving) |
 | | `TDigest` | Streaming quantiles (p50, p99, p99.9) in a few KB, mergeable |
+| | `MinHash<T>` | Similarity of two sets (Jaccard) from small fixed-size signatures |
 
 ## Sorting
 
@@ -100,8 +102,21 @@ var lastSamples = new CircularBuffer<double>(100);   // keeps the 100 most recen
 
 // Compressed ID sets: segments, permissions, search postings
 RoaringBitmap activeUsers = [.. activeIds], paidUsers = [.. paidIds];
-long activeAndPaid = (activeUsers & paidUsers).Count;
+long activeAndPaid = activeUsers.IntersectionCount(paidUsers);   // without building the intersection
+activeUsers.UnionWith(newSignups);                               // in place
+RoaringBitmap anyRegion = RoaringBitmap.Union(europe, asia, americas);
 byte[] saved = activeUsers.ToBytes();                 // readable by Java/Go/C/Rust/Python Roaring libraries
+
+// Coverage: booked time, IP blocks, allocated spans. Ranges are half-open and kept merged.
+var booked = new RangeSet<DateTime>();
+booked.Add(nineAm, elevenAm);
+booked.Add(elevenAm, noon);                            // stored as one range, 9:00–12:00
+bool clash = booked.Overlaps(meetingStart, meetingEnd);
+
+// Prefix sums that stay updatable: histograms, cumulative metrics, weighted sampling
+var weights = new FenwickTree<double>(initialWeights);
+weights.Add(item, +0.5);
+int picked = weights.UpperBound(Random.Shared.NextDouble() * weights.Total);
 
 // Calendars, genomic ranges, IP ranges, …
 var bookings = new IntervalTree<DateTime, string>(intervals);
@@ -115,6 +130,34 @@ Tree.TryFindPath(syntaxRoot, n => n.ChildNodes(), n => n is MethodDeclarationSyn
 var cache = new LruCache<string, Token>(capacity: 1000, StringComparer.Ordinal);
 ```
 
+`BTreeDictionary` and `Trie` implement `IDictionary<TKey, TValue>`, and `BTreeSet` implements `ISet<T>` and
+`IReadOnlySet<T>`, so they work with any API that takes the BCL interfaces. Their `Keys` and `Values` are live
+collections with an O(1) `Count` and allocation-free enumeration; on a `BTreeDictionary`, `Keys[i]` is the i-th
+smallest key in O(log n).
+
+`RoaringBitmap` reads bitmaps written with run-length containers, but stores and writes runs as array or bitmap
+containers. Long runs therefore take more memory than in CRoaring: `AddRange(0, 10_000_000)` uses about 1.2 MB here
+instead of a few bytes.
+
+`Trie` trades memory for speed: with its hash index for exact lookups, it uses 3–5× the memory of a
+`Dictionary<string, TValue>` with the same keys (1M keys: 160–180 MB vs 37 MB, key strings excluded).
+
+## Text
+
+```csharp
+// Every occurrence of thousands of keywords, in one pass over the text
+AhoCorasick<Severity> rules = new([new("timeout", Severity.Warn), new("out of memory", Severity.Fatal), …]);
+foreach (var match in rules.EnumerateMatches(logLine))   // allocation-free
+{
+    Report(match.Index, match.Length, match.Value);
+}
+
+bool flagged = AhoCorasick.Create(bannedWords).ContainsAny(comment);
+```
+
+Matches are ordinal, include overlapping ones, and come in order of their end position. The automaton is
+immutable, so one instance can be shared between threads.
+
 ## Probabilistic
 
 ```csharp
@@ -127,7 +170,17 @@ var latency = new TDigest();                                                    
 latency.Add(elapsedMs);
 double p99 = latency.Quantile(0.99);
 
+var sessions = new CuckooFilter<string>(capacity: 1_000_000);                              // membership with removal
+sessions.Add(token);
+sessions.Remove(token);
+
+var doc1 = new MinHash<string>(); var doc2 = new MinHash<string>();                       // near-duplicate detection
+foreach (string shingle in Shingles(text1)) doc1.Add(shingle);
+foreach (string shingle in Shingles(text2)) doc2.Add(shingle);
+double similarity = doc1.Similarity(doc2);                                                // Jaccard; std. error ≤ 4.4%
+
 byte[] saved = known.ToBytes();   // stable hashing: reload in another process or machine
+var reloaded = BinaryFuseFilter<string>.FromBytes(saved);   // checks the type and format version first
 ```
 
 ## Benchmarks
@@ -146,7 +199,6 @@ your own numbers.
 | `RadixSort` | 0.59 µs (0.85) | 157 µs (0.25) | 19.8 ms (0.20) |
 | `ParallelSort` (4 cores) | 0.62 µs (0.89) | 309 µs (0.48) | 32.8 ms (0.34) |
 | `MergeSort` (stable) | 2.0 µs (2.87) | 980 µs (1.53) | 150 ms (1.55) |
-| `HeapSort` | 0.94 µs (1.34) | 938 µs (1.47) | 161 ms (1.65) |
 
 None of them allocate, except `ParallelSort` at 1M (13 KB of task bookkeeping). Below 64K elements `ParallelSort`
 is just `QuickSort`. On this shared VM it gained only 1.2× over `QuickSort` at 1M; its scaling on real many-core
@@ -161,6 +213,19 @@ hardware has not been measured yet.
 | Iterate all | 2.41 ms | 0.24 ms | 9.9× faster |
 | Memory allocated building it | 4.8 MB | 1.5 MB | 3.3× less |
 | Rank of a key | O(n) | O(log n) | |
+
+**`AhoCorasick` vs searching for each pattern separately**: counting every occurrence of random 4–9 letter patterns in
+100 KB of text (`--job short`, same VM; ±10%)
+
+| Patterns | `IndexOf` per pattern | `SearchValues<string>`, then check each pattern | `AhoCorasick` |
+|---:|---:|---:|---:|
+| 10 | 93 µs | 40 µs | 342 µs |
+| 100 | 889 µs | 2.0 ms | 365 µs |
+| 1,000 | 8.2 ms | 3.9 ms | 621 µs |
+
+Aho-Corasick costs about 3.5 ns per char of text whatever the number of patterns. A vectorized `IndexOf` is faster
+for a handful of patterns; somewhere between 10 and 100 patterns the automaton takes over, and at 1,000 it is 13×
+faster. None of them allocate.
 
 **`Trie<int>` vs `Dictionary<string, int>`, 10,000 random keys.** Exact lookups are at parity: 176 µs vs 175 µs for
 10K lookups, through an internal hash index. A prefix search takes 0.14 µs vs 21.6 µs for scanning the dictionary.

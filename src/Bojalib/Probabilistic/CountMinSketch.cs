@@ -140,14 +140,14 @@ public sealed class CountMinSketch<T>
     /// <returns>The sketch's bytes.</returns>
     public byte[] ToBytes()
     {
-        byte[] bytes = new byte[17 + (_counters.Length * 8)];
-        BinaryPrimitives.WriteInt32LittleEndian(bytes, Width);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), Depth);
-        bytes[8] = ConservativeUpdate ? (byte)1 : (byte)0;
-        BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(9), TotalCount);
+        byte[] bytes = SerializedFormat.Create(SerializedKind.CountMinSketch, 17 + (_counters.Length * 8), out Span<byte> body);
+        BinaryPrimitives.WriteInt32LittleEndian(body, Width);
+        BinaryPrimitives.WriteInt32LittleEndian(body[4..], Depth);
+        body[8] = ConservativeUpdate ? (byte)1 : (byte)0;
+        BinaryPrimitives.WriteInt64LittleEndian(body[9..], TotalCount);
         for (int i = 0; i < _counters.Length; i++)
         {
-            BinaryPrimitives.WriteInt64LittleEndian(bytes.AsSpan(17 + (i * 8)), _counters[i]);
+            BinaryPrimitives.WriteInt64LittleEndian(body[(17 + (i * 8))..], _counters[i]);
         }
 
         return bytes;
@@ -162,6 +162,7 @@ public sealed class CountMinSketch<T>
     public static CountMinSketch<T> FromBytes(ReadOnlySpan<byte> bytes, Func<T, ulong>? hasher = null)
 #pragma warning restore CA1000
     {
+        bytes = SerializedFormat.Body(bytes, SerializedKind.CountMinSketch, nameof(bytes));
         if (bytes.Length < 17)
         {
             throw new ArgumentException("Not a serialized Count-Min sketch.", nameof(bytes));

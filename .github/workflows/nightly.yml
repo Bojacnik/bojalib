@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        area: ['**/Sorting/**/*.cs', '**/Collections/**/*.cs', '**/Probabilistic/**/*.cs', '**/Hashing/**/*.cs']
+        area: ['**/Sorting/**/*.cs', '**/Collections/**/*.cs', '**/Probabilistic/**/*.cs', '**/Hashing/**/*.cs', '**/Text/**/*.cs']
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6

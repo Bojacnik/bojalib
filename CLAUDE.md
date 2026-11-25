@@ -1,12 +1,21 @@
 # Bojalib — notes for Claude
 
 High-performance .NET 10 library: SIMD/parallel sorting, B-trees, tries, Roaring bitmaps, probabilistic structures.
-See `README.md` for the API, `CONTRIBUTING.md` for layout and conventions, `CHANGELOG.md` for 2.0.0 contents.
+See `README.md` for the API, `CONTRIBUTING.md` for layout and conventions, `CHANGELOG.md` for what each release contains.
 
 ## Status
 
-- 2.0.0 is in progress on branch `ccr-7d27f5b9-tgjrfe`, draft PR #1. Not released, not tagged.
-- No public API is frozen yet: breaking changes are still free until 2.0.0 ships.
+- 2.0.0 is released (tag `v2.0.0`, on nuget.org). Check `git tag` / nuget.org rather than trusting this file: a
+  fresh clone may not have fetched the tags.
+- 3.0.0 is being prepared in PR #11; it is not tagged yet. Its breaking changes are listed in `CHANGELOG.md`
+  ("Migrating from 2.x") and in `src/Bojalib/CompatibilitySuppressions.xml`. Package validation runs against 2.0.0,
+  so any break not in that file fails `dotnet pack`. After 3.0.0 ships, set `PackageValidationBaselineVersion` to
+  3.0.0 and delete the suppression file; from then on, 3.x must stay compatible.
+- In 3.0.0, from issues #4, #5, #7, #8, #9: `AhoCorasick` (new `Bojalib.Text` namespace), `RangeSet`,
+  `FenwickTree`, `CuckooFilter`, `MinHash`; plus `IDictionary` / `ISet` on the B-tree types and `Trie`, and in-place
+  set operations, counts and `RemoveRange` on `RoaringBitmap`. #6 (rank/select BitVector) was closed as overlapping
+  `RoaringBitmap`. Breaking: `BubbleSort` removed, `HeapSort` / `InsertionSort` internal, `RoaringBitmapBuilder`
+  folded into `RoaringBitmap.Create`, `Keys` / `Values` return `KeyCollection` / `ValueCollection`.
 
 ## Heavy testing (done in the 2.0.0 cycle)
 
@@ -41,9 +50,10 @@ What exists and where:
 
 Still open:
 
-- Mutation runs for Collections, Probabilistic and Text. The workflow is ready; read the reports and add tests for
-  real gaps.
-- Real hardware: ARM64 (the NEON path) and 16+ cores (`ParallelSort` scaling) are only verified indirectly.
+- Mutation runs for Collections, Probabilistic, Hashing and Text. The workflow is ready; read the reports and add
+  tests for real gaps.
+- Real hardware: CI now has an `ubuntu-24.04-arm` job for the NEON path (needs ARM runners to be available to the
+  repository). 16+ cores (`ParallelSort` scaling) is still only verified indirectly.
 - Comparing TDigest and HyperLogLog with reference implementations, beyond the statistical bounds above.
 
 ## How to verify (same as CI)
@@ -57,7 +67,19 @@ DOTNET_EnableAVX2=0 dotnet test --project tests/Bojalib.Tests -c Release
 DOTNET_EnableHWIntrinsic=0 dotnet test --project tests/Bojalib.Tests -c Release
 ```
 
+## Measured facts worth remembering
+
+- `AhoCorasick` costs ~3.5 ns per text char regardless of pattern count; the DFA is latency-bound (one dependent
+  table load per char). Vectorized `IndexOf` per pattern beats it below roughly 10–100 patterns.
+- `Trie` uses 3–5× the memory of `Dictionary<string, T>` for the same keys (1M keys: 160–180 MB vs 37 MB).
+- With `--coverlet`, the test suite takes ~3 minutes instead of ~30 s; most of that is the existing `ParallelSort`
+  and sorting tests under instrumentation.
+
 ## Conventions learned so far
+
+- Probabilistic payloads share a 4-byte header (`Probabilistic/SerializedFormat.cs`: magic, kind, version) and
+  their bytes are pinned in `SerializedFormatTests`. To change a format, bump that kind's version and keep a
+  reader for the old one; never change bytes under an existing version.
 
 - Measure before claiming performance; put real numbers (and honest regressions) in the docs.
 - Every data structure gets a model-based CsCheck test against a simple reference implementation.
